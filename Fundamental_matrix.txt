@@ -1,0 +1,11 @@
+%YAML:1.0
+---
+fundamental_matrix: -5.5172326471827531e-18
+fundamental_matrix: -5.4334449768066406e-01
+fundamental_matrix: 1.4852650463581085e-01
+fundamental_matrix: 5.4334449768066406e-01
+fundamental_matrix: -4.8948673309718367e-18
+fundamental_matrix: 1.4852650463581085e-01
+fundamental_matrix: -1.4852650463581085e-01
+fundamental_matrix: -1.4852650463581085e-01
+fundamental_matrix: 0.
