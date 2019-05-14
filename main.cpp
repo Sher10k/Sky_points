@@ -11,8 +11,11 @@
 #include <opencv2/features2d.hpp>
 #include <opencv2/calib3d.hpp>  // For FundamentalMat
 
+//#include <opencv2/sfm.hpp>
+
 using namespace cv;
 using namespace std;
+//using namespace cv::sfm
 
 const float nn_match_ratio = 0.8f;   // Nearest neighbor matching ratio
 
@@ -104,8 +107,8 @@ int main()
     DMatch dist1, dist2, temp;
 
     // FlannBasedMatcher
-    FlannBasedMatcher matcher2;
-    vector<vector<DMatch>> matches2;
+    //FlannBasedMatcher matcher2;
+    //vector<vector<DMatch>> matches2;
 
     int t, f=2;
     Mat res;
@@ -117,6 +120,8 @@ int main()
     vector<Mat> tvecs;
     intrinsic.ptr<float>(0)[0] = 1;
     intrinsic.ptr<float>(1)[1] = 1;
+
+    CvMat* 	fundamental_matrix;
 
 
     while(1) {
@@ -142,109 +147,98 @@ int main()
 
 
             // ORB detector        -------------------------------------------------------------//      step 1
-            detector->detectAndCompute(frame, noArray(), keypoints_frame, descriptors_frame);   // Detected key points at frame
-
             if (!cap.read(frameImg2)) { // check if we succeeded and store new frame into 'frame2'
                 cerr << "ERROR! blank frame grabbed\n";
                 break;
             }
             undistort(frameImg2, frame2, intrinsic, distCoeffs);
+
+            detector->detectAndCompute(frame, noArray(), keypoints_frame, descriptors_frame);       // Detected key points at frame
             detector->detectAndCompute(frame2, noArray(), keypoints_frame2, descriptors_frame2);    // Detected key points at frame2
 
-            matcher.match(descriptors_frame, descriptors_frame2, matches, noArray());   // Matches key points of the frame with key points of the frame2
-            //matcher2.knnMatch(descriptors_frame, descriptors_frame2, matches2, 2);
+            if ((keypoints_frame.size() != 0) && (keypoints_frame2.size() != 0)) {         // Проверка на нахождение хотябы одной контрольной точки
+                matcher.match(descriptors_frame, descriptors_frame2, matches, noArray());   // Matches key points of the frame with key points of the frame2
 
-            // Sort match
-            for (int i = 0; i < key_num - 1; i++) {
-                dist1 = matches[i];
-                for (int j = i + 1; j < key_num; j++) {
-                    dist2 = matches[j];
-                    if (dist2.distance < dist1.distance) {
-                        dist1 = matches[j];
-                        t = j;
+                // Sort match
+                key_num = matches.size();
+                for (int i = 0; i < key_num - 1; i++) { //key_num - 1
+                    dist1 = matches[i];
+                    for (int j = i + 1; j < key_num; j++) {
+                        dist2 = matches[j];
+                        if (dist2.distance < dist1.distance) {
+                            dist1 = matches[j];
+                            t = j;
+                        }
+                        if (j == key_num - 1) {
+                            matches[t] = matches[i];
+                            matches[i] = dist1;
+                            break;
+                        }
                     }
-                    if (j == key_num - 1) {
-                        matches[t] = matches[i];
-                        matches[i] = dist1;
-                        break;
+                }
+
+                // Selection of key points on both frames satisfying the threshold
+                t = 0;
+                vector<DMatch> good_matches;
+                vector<KeyPoint> inliers1, inliers2;
+                for (size_t i = 0; i < matches.size(); i++) {
+                    if (matches[i].distance < 10) {
+                        int new_i = inliers1.size();
+                        inliers1.push_back(keypoints_frame[matches[i].queryIdx]);
+                        inliers2.push_back(keypoints_frame2[matches[i].trainIdx]);
+                        good_matches.push_back(DMatch(new_i, new_i, 0));
+                        t ++;
                     }
                 }
-            }
 
-            // Selection of key points on both frames satisfying the threshold
-            t = 0;
-            vector<DMatch> good_matches;
-            vector<KeyPoint> inliers1, inliers2;
-            for (size_t i = 0; i < matches.size(); i++) {
-                if (matches[i].distance < 10) {
-                    int new_i = inliers1.size();
-                    inliers1.push_back(keypoints_frame[matches[i].queryIdx]);
-                    inliers2.push_back(keypoints_frame2[matches[i].trainIdx]);
-                    good_matches.push_back(DMatch(new_i, new_i, 0));
-                    t ++;
+                // drawing two frames and connecting similar cue points with lines
+                drawMatches(frame, inliers1, frame2, inliers2, good_matches, res);
+
+                /*for (int k = 0; k < key_num; k++){    // выделение точек окружностями
+                    circle(frame, keypoints_frame[k].pt, 3, Scalar(0, 0, 255), 1, LINE_4);
+                    //circle(frame2, keypoints_frame2[k].pt, 3, Scalar(0, 0, 255), 1, LINE_4);
+                }*/
+
+
+                //resize(res, res, res.size()/2);
+                imshow("frame", res);
+                //imshow("frame", frame2);
+                // END ORB detector        ------------------------------------------------------------//
+
+                if ((inliers1.size() != 0) && (inliers2.size() != 0)) { // Проверка на наличие точек, удовлетворяющих порогу
+                    // FindFundamentalMat     -------------------------------------------------------------//      step 2
+                    CvMat* 	points1;
+                    CvMat* 	points2;
+                    CvMat* 	status;
+                    //CvMat* 	fundamental_matrix;
+
+                    points1 = cvCreateMat( 1, t, CV_32FC2 );
+                    points2 = cvCreateMat( 1, t, CV_32FC2 );
+                    status 	= cvCreateMat( 1, t, CV_8UC1 );
+
+                    for (int i = 0; i < t; i++) {
+                        points1->data.fl[i*2] 		= inliers1[i].pt.x;
+                        points1->data.fl[i*2+1] 	= inliers1[i].pt.y;
+                        points2->data.fl[i*2] 		= inliers2[i].pt.x;
+                        points2->data.fl[i*2+1] 	= inliers2[i].pt.y;
+                    }
+
+                    fundamental_matrix = cvCreateMat( 3, 3, CV_32FC1 );
+                    int fm_count = cvFindFundamentalMat(points1, points2, fundamental_matrix, CV_FM_RANSAC, 1.0, 0.99, status);
+
+                    // Отображение элементов фундоментальной матрицы через прямой доступ к её элементам
+                    /*for(int i = 0; i < fundamental_matrix->rows; i++){
+                        float* ptr = (float*)(fundamental_matrix->data.ptr + i * fundamental_matrix->step);
+                        for(int j = 0; j < fundamental_matrix->cols; j++){
+                            //printf("%.0f ", ptr[j]);
+                        }
+                        //printf("\n");
+                    }
+                    //printf("-----\n");*/
+                    // END FindFundamentalMat     ---------------------------------------------------------//
                 }
             }
 
-            // drawing two frames and connecting similar cue points with lines
-            drawMatches(frame, inliers1, frame2, inliers2, good_matches, res);
-
-            /*for (int k = 0; k < key_num; k++){    // выделение точек окружностями
-                circle(frame, keypoints_frame[k].pt, 3, Scalar(0, 0, 255), 1, LINE_4);
-                //circle(frame2, keypoints_frame2[k].pt, 3, Scalar(0, 0, 255), 1, LINE_4);
-            }*/
-
-
-            //resize(res, res, res.size()/2);
-            imshow("frame", res);
-            //imshow("frame", frame2);
-            // END ORB detector        ------------------------------------------------------------//
-
-            // FindFundamentalMat     -------------------------------------------------------------//      step 2
-            CvMat* 	points1;
-            CvMat* 	points2;
-            CvMat* 	status;
-            CvMat* 	fundamental_matrix;
-
-            points1 = cvCreateMat( 1, t, CV_32FC2 );
-            points2 = cvCreateMat( 1, t, CV_32FC2 );
-            status 	= cvCreateMat( 1, t, CV_8UC1 );
-
-            for (int i = 0; i < t; i++) {
-                points1->data.fl[i*2] 		= inliers1[i].pt.x;
-                points1->data.fl[i*2+1] 	= inliers1[i].pt.y;
-                points2->data.fl[i*2] 		= inliers1[i].pt.x;
-                points2->data.fl[i*2+1] 	= inliers2[i].pt.y;
-            }
-
-            fundamental_matrix = cvCreateMat( 3, 3, CV_32FC1 );
-            int fm_count = cvFindFundamentalMat(points1, points2, fundamental_matrix, CV_FM_RANSAC, 1.0, 0.99, status);
-
-            // Отображение элементов фундоментальной матрицы через прямой доступ к её элементам
-            /*for(int i = 0; i < fundamental_matrix->rows; i++){
-                float* ptr = (float*)(fundamental_matrix->data.ptr + i * fundamental_matrix->step);
-                for(int j = 0; j < fundamental_matrix->cols; j++){
-                    //printf("%.0f ", ptr[j]);
-                }
-                //printf("\n");
-            }
-            //printf("-----\n");*/
-
-            FileStorage fundam;
-            fundam.open("/home/roman/Sky_points/Fundamental_matrix.txt", FileStorage::WRITE);
-
-            for(int i = 0; i < fundamental_matrix->rows; i++){
-                float* ptr = (float*)(fundamental_matrix->data.ptr + i * fundamental_matrix->step);
-                for(int j = 0; j < fundamental_matrix->cols; j++){
-                    //printf("%.0f ", ptr[j]);
-                    fundam << "fundamental_matrix" << ptr[j];
-                }
-                //printf("\n");
-            }
-            //printf("-----\n");
-
-            fundam.release();
-
-            // END FindFundamentalMat     ---------------------------------------------------------//
 
             // Farneback optical flow -------------------------------------------------------------//      step #
             /*cap.read(frame2);
@@ -311,13 +305,14 @@ int main()
         else if ( f == 2 ) {
 
             int successes = 0;                                      // Счетчик удачных калибровочных кадров
+            int num_successes = 3;                                    // Кол-во калибровочных кадров
             Mat calib_frame = Mat::zeros(frame.size(), CV_8UC3);      // Калибровочный кадр
             Mat calib_frame_grey = Mat::zeros(frame.size(), CV_8UC3);
             Mat frame3 ;                                             // поток кадров, для удобства
             Mat frame4 = Mat::zeros(Size(2 * frame.cols, frame.rows), CV_8UC3);
 
-            int numCornersHor = 7;                                  // Кол-во углов по вертикале и горизонтале,
-            int numCornersVer = 5;                                  // на 1 меньше чем кол-во квадратов по вертикале и горизонтале
+            int numCornersHor = 8;  // 7                                 // Кол-во углов по вертикале и горизонтале,
+            int numCornersVer = 6;  // 5                                // на 1 меньше чем кол-во квадратов по вертикале и горизонтале
             int numSquares = numCornersHor * numCornersVer;
             Size board_sz = Size(numCornersHor, numCornersVer);
 
@@ -330,7 +325,7 @@ int main()
 
             int batton = 0;
 
-            while ( successes < 10 ) {                        // Цикл для определенного числа калибровочных кадров
+            while ( successes < num_successes ) {                        // Цикл для определенного числа калибровочных кадров
                 batton = (char)waitKey(1);
                 if( batton == 27 ) {                            // Press ESC, interrupt the cycle
                     break;
@@ -407,9 +402,19 @@ int main()
             break;
         } else if ( c == 13 ) {                 // Enter
             imshow("foto", res);
-        } else if ( (c == 99) || (c == 67)) {   // Calibrate camera "с"
+        } else if ( (c == 99) || (c == 67) ) {   // Calibrate camera. "с" & "C"
             f = 2;
             imshow("calibration", frame);
+        } else if ( (c == 70) || (c == 102) ) {   // Output fundamental_matrix into file. "f" & "F"
+            FileStorage fundam;
+            fundam.open("/home/roman/Sky_points/Fundamental_matrix.txt", FileStorage::WRITE);
+            for(int i = 0; i < fundamental_matrix->rows; i++) {
+                float* ptr = (float*)(fundamental_matrix->data.ptr + i * fundamental_matrix->step);
+                for(int j = 0; j < fundamental_matrix->cols; j++) {
+                    fundam << "fundamental_matrix" << ptr[j];
+                }
+            }
+            fundam.release();
         }
         // END Обработка нажатой кнопки  ----------------------------------------------------//
     }
