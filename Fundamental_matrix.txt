@@ -1,11 +1,10 @@
 %YAML:1.0
 ---
-fundamental_matrix: 0.
-fundamental_matrix: 0.
-fundamental_matrix: 0.
-fundamental_matrix: 0.
-fundamental_matrix: 0.
-fundamental_matrix: 0.
-fundamental_matrix: 0.
-fundamental_matrix: 0.
-fundamental_matrix: 0.
+fundamental_matrix: !!opencv-matrix
+   rows: 3
+   cols: 3
+   dt: d
+   data: [ 1.8813404818737619e-17, -3.4234645374433964e-01,
+       -6.7985087081398032e-01, 3.4234645374433970e-01,
+       3.3533991594078850e-17, -6.7985087081398010e-01,
+       6.7985087081398032e-01, 6.7985087081398010e-01, 0. ]
