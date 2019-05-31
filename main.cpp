@@ -19,7 +19,7 @@ using namespace cv;
 using namespace std;
 //using namespace cv::sfm;
 
-Mat drawlines(Mat& img1, std::vector<cv::Point3f>& line, vector<Point2f>& pts){         // Draw epipolar lines
+Mat drawlines(Mat& img1, std::vector<cv::Point3f>& line, vector<Point2f>& pts) {         // Draw epipolar lines
     
     /*for (int i = 0; i < line.size(); i++) {
         printf("line [ %i ] = X %5.7f, Y %5.7f, Z %5.7f\n", i, line[i].x, line[i].y, line[i].z);
@@ -38,6 +38,48 @@ Mat drawlines(Mat& img1, std::vector<cv::Point3f>& line, vector<Point2f>& pts){ 
     return img1;
 }
 
+// Find matches between points 
+unsigned long Match_find(vector<KeyPoint> kpf1, vector<KeyPoint> kpf2, Mat dpf1, Mat dpf2, vector<KeyPoint> *gp1, vector<KeyPoint> *gp2, vector<DMatch> *gm, unsigned long kn) {
+   
+    Ptr<BFMatcher> bf = BFMatcher::create(NORM_HAMMING, true);
+    BFMatcher matcher(NORM_HAMMING);    // NORM_L2
+    vector<DMatch> matches;
+    DMatch dist1, dist2;
+    
+    matcher.match(dpf1, dpf2, matches, noArray());   // Matches key points of the frame with key points of the frame2
+    
+    // Sort match
+    unsigned long temp = 0;
+    kn = static_cast<unsigned long>(matches.size());
+    for (unsigned long i = 0; i < kn - 1; i++) { //key_num - 1
+        dist1 = matches[i];
+        for (unsigned long j = i + 1; j < kn; j++) {
+            dist2 = matches[j];
+            if (dist2.distance < dist1.distance) {
+                dist1 = matches[j];
+                temp = j;
+            }
+            if (j == kn - 1) {
+                matches[temp] = matches[i];
+                matches[i] = dist1;
+                break;
+            }
+        }
+    }
+    // Selection of key points on both frames satisfying the threshold
+    temp = 0;
+    for (size_t i = 0; i < matches.size(); i++) {
+        if (matches[i].distance < 10) {
+            int new_i = static_cast<int>( gp1->size() );
+            gp1->push_back( kpf1[ static_cast<unsigned long>( matches[i].queryIdx ) ] );
+            gp2->push_back( kpf2[ static_cast<unsigned long>( matches[i].trainIdx ) ] );
+            gm->push_back( DMatch(new_i, new_i, 0) );
+            temp ++;
+        }
+    }
+    return temp;
+}
+
 int main()
 {
     /*printf("OPENCV_OPENCL_DEVICE='%s'\n", getenv("OPENCV_OPENCL_DEVICE"));
@@ -45,9 +87,10 @@ int main()
     ocl::Context context = ocl::Context::getDefault();*/
 
     Mat frame, frame2, frame3, frameImg, frameImg2, frame_grey, flow, img2Original;
-    double frame_MSEC, frame_MSEC2, frame_pause = 0;
-    int thresh = 200;
-    int max_thresh = 255;
+    double frame_pause = 0;
+//    double frame_MSEC, frame_MSEC2; 
+//    int thresh = 200;
+//    int max_thresh = 255;
 
         //  Initialize VIDEOCAPTURE
     VideoCapture cap;
@@ -118,18 +161,15 @@ int main()
     frame_pause = frame_pause / 30 * 1000;  // Convertion from frames per second to msec
 
     // ORB keypoint
-    int key_num = 100;  // Num keypoint
-    Ptr<FeatureDetector> detector = ORB::create(key_num, 1.2f, 4, 31, 0, 2, ORB::HARRIS_SCORE, 31);
+    unsigned long key_num = 100;  // Num keypoint
+    Ptr<FeatureDetector> detector = ORB::create(static_cast<int>(key_num), 1.2f, 4, 31, 0, 2, ORB::HARRIS_SCORE, 31);
     vector<KeyPoint> keypoints_frame, keypoints_frame2;
     Mat descriptors_frame, descriptors_frame2;
 
     // Brute-Force Matcher
-    Ptr<BFMatcher> bf = BFMatcher::create(NORM_HAMMING, true);
-    BFMatcher matcher(NORM_HAMMING);    // NORM_L2
-    vector<DMatch> matches;
-    DMatch dist1, dist2, temp;
+    /*-----------------*/
 
-    int t = 0;              // Счетчик найденых точек
+    unsigned long t = 0;              // Счетчик найденых точек
     int f = 2;              // Переключение в режим калибровки
     bool mode_cam = true;   // Режим работы камеры
     Mat res;
@@ -146,10 +186,10 @@ int main()
 
     Mat fundamental_matrix;
 
-    char c;
-    while(1) {
-        if ( (f == 1) && (mode_cam == true) ) {   // Основной режим работы камеры, потоковый режим
-            //  Wait for a new frame from camera and store it into 'frame'
+    int c;
+    while(1) {                      // Основной режим работы камеры, потоковый режим
+        if ( (f == 1) && (mode_cam == true) ) {   
+            //  Wait for a new frame from camera and store it into 'frameImg'
             if (!cap.read(frameImg)) { // check if we succeeded
                 cerr << "ERROR! blank frame grabbed\n";
                 break;
@@ -169,7 +209,7 @@ int main()
             // End Delay frame2         --------------------------------------------------------//
 
             // ORB detector        -------------------------------------------------------------//      step 1
-            if (!cap.read(frameImg2)) { // check if we succeeded and store new frame into 'frame2'
+            if (!cap.read(frameImg2)) { // check if we succeeded and store new frame into 'frameImg2'
                 cerr << "ERROR! blank frame grabbed\n";
                 break;
             }
@@ -180,54 +220,32 @@ int main()
 
             if ((keypoints_frame.size() != 0) && (keypoints_frame2.size() != 0)) {          // Проверка на нахождение хотябы одной контрольной точки
                 
-                matcher.match(descriptors_frame, descriptors_frame2, matches, noArray());   // Matches key points of the frame with key points of the frame2
-                
-                // Sort match
-                key_num = static_cast<int>(matches.size());
-                for (int i = 0; i < key_num - 1; i++) { //key_num - 1
-                    dist1 = matches[i];
-                    for (int j = i + 1; j < key_num; j++) {
-                        dist2 = matches[j];
-                        if (dist2.distance < dist1.distance) {
-                            dist1 = matches[j];
-                            t = j;
-                        }
-                        if (j == key_num - 1) {
-                            matches[t] = matches[i];
-                            matches[i] = dist1;
-                            break;
-                        }
-                    }
-                }
-
-                // Selection of key points on both frames satisfying the threshold
-                t = 0;
                 vector<DMatch> good_matches;
-                vector<KeyPoint> inliers1, inliers2;
-                for (size_t i = 0; i < matches.size(); i++) {
-                    if (matches[i].distance < 10) {
-                        int new_i = static_cast<int>(inliers1.size());
-                        inliers1.push_back(keypoints_frame[matches[i].queryIdx]);
-                        inliers2.push_back(keypoints_frame2[matches[i].trainIdx]);
-                        good_matches.push_back(DMatch(new_i, new_i, 0));
-                        t ++;
-                    }
-                }
+                vector<KeyPoint> good_points1, good_points2;
+                t = Match_find( keypoints_frame,
+                                keypoints_frame2,
+                                descriptors_frame, 
+                                descriptors_frame2, 
+                                &good_points1, 
+                                &good_points2, 
+                                &good_matches, 
+                                key_num );                                                  // Поиск схожих точек удовлетворяющих порогу
+                
                 // drawing two frames and connecting similar cue points with lines
-                drawMatches(frame, inliers1, frame2, inliers2, good_matches, res);
+                drawMatches(frame, good_points1, frame2, good_points2, good_matches, res);
+            // END ORB detector        ------------------------------------------------------------//   END step 1
                 
-                // END ORB detector        ------------------------------------------------------------//   END step 1
-                vector<Point2f> points1(t);
-                vector<Point2f> points2(t);
-                vector<Point2f> status(t);
-                
-                if ((inliers1.size() >= 8) && (inliers2.size() >= 8)) { // Проверка на наличие точек, удовлетворяющих порогу
+                if ((good_points1.size() >= 8) && (good_points2.size() >= 8)) { // Проверка на наличие точек, удовлетворяющих порогу
                     // FindFundamentalMat     -------------------------------------------------------------//      step 2
-                    for (int i = 0; i < t; i++) {
-                        points1[i].x = inliers1[i].pt.x;
-                        points1[i].y = inliers1[i].pt.y;
-                        points2[i].x = inliers2[i].pt.x;
-                        points2[i].y = inliers2[i].pt.y;
+                    vector<Point2f> points1(t);
+                    vector<Point2f> points2(t);
+                    vector<Point2f> status(t);
+                    
+                    for (unsigned long i = 0; i < t; i++) {
+                        points1[i].x = good_points1[i].pt.x;
+                        points1[i].y = good_points1[i].pt.y;
+                        points2[i].x = good_points2[i].pt.x;
+                        points2[i].y = good_points2[i].pt.y;
                     }
                     fundamental_matrix = cv::findFundamentalMat(points1, points2, FM_RANSAC, 1.0, 0.99, noArray());
 //                    for(int i = 0; i < fundamental_matrix.rows; i++){     // Отображение элементов 
@@ -256,7 +274,10 @@ int main()
                         imshow("frame_epipol_double", frame4);
                         
                     }   // END Draw epilines between two image  ---------------------------------------------//   END step 3
-                } else imshow("frame_epipol_double", res);
+                } else {
+                    frame4 = res;
+                    imshow("frame_epipol_double", frame4);
+                }
             } else {                                                                 // if points not found
                 Rect r1(0, 0, frame.cols, frame.rows);                
                 Rect r2(frame2.cols, 0, frame2.cols, frame2.rows);
@@ -323,10 +344,82 @@ int main()
 
             //imshow("Frame_live", frame);
             //cout  <<    "MSEC = " << cap.get(CAP_PROP_POS_MSEC) << endl;
-        }
-        else if ((f == 1) && (mode_cam == false)) { // Покадровый режим работы камеры
+        }                           // Покадровый режим работы камеры
+        else if ((f == 1) && (mode_cam == false)) { 
+            //  Wait for a new frame from camera and store it into 'frameImg'
+            if (!cap.read(frameImg)) { // check if we succeeded
+                cerr << "ERROR! blank frame grabbed\n";
+                break;
+            }
+            undistort(frameImg, frame3, intrinsic, distCoeffs);
+            imshow("real_time", frame3);
             
-        }         // Калибровка камеры  press "с" or "C"--------------------------------------------//      step 0
+                // Вывод предыдущего и текущего кадров вместе
+            /*Rect r1(0, 0, frame.cols, frame.rows);                
+            Rect r2(frame2.cols, 0, frame2.cols, frame2.rows);
+            frame.copyTo(frame4( r1 ));
+            frame2.copyTo(frame4( r2 ));
+            imshow("1-2 frame",frame4);*/
+            
+            int button_nf = waitKey(1);
+            if ( button_nf == 32 )             // If press "space"
+            {
+                frame = frame3;
+                detector->detectAndCompute(frame, noArray(), keypoints_frame, descriptors_frame);       // Detected key points at frame
+                if ( !frame2.empty() ) 
+                {
+                    detector->detectAndCompute(frame2, noArray(), keypoints_frame2, descriptors_frame2);    // Detected key points at frame2
+                }
+                if ((keypoints_frame.size() != 0) && (keypoints_frame2.size() != 0)) {
+                    vector<DMatch> good_matches;
+                    vector<KeyPoint> good_points1, good_points2;
+                    t = Match_find( keypoints_frame,
+                                    keypoints_frame2,
+                                    descriptors_frame, 
+                                    descriptors_frame2, 
+                                    &good_points1, 
+                                    &good_points2, 
+                                    &good_matches, 
+                                    key_num );
+                    
+                    drawMatches(frame, good_points1, frame2, good_points2, good_matches, frame4);
+                    imshow("1-2 frame", frame4);
+                    
+                    /*if ((good_points1.size() >= 8) && (good_points2.size() >= 8)) { // Проверка на наличие точек, удовлетворяющих порогу
+                        vector<Point2f> points1(t);
+                        vector<Point2f> points2(t);
+                        vector<Point2f> status(t);
+                        
+                        for (unsigned long i = 0; i < t; i++) {
+                            points1[i].x = good_points1[i].pt.x;
+                            points1[i].y = good_points1[i].pt.y;
+                            points2[i].x = good_points2[i].pt.x;
+                            points2[i].y = good_points2[i].pt.y;
+                        }
+                        fundamental_matrix = cv::findFundamentalMat(points1, points2, FM_RANSAC, 1.0, 0.99, noArray());
+                        
+                        if (!fundamental_matrix.empty()) {
+                            
+                            std::vector<cv::Point3f> lines[2];
+                            cv::computeCorrespondEpilines(points1, 1 , fundamental_matrix, lines[0]);
+                            cv::computeCorrespondEpilines(points2, 2 , fundamental_matrix, lines[1]);
+                            
+                            Mat frame_epipol1 = drawlines(frame, lines[0], points1);
+                            Mat frame_epipol2 = drawlines(frame2, lines[1], points2);
+                                               
+                            Rect r1(0, 0, frame_epipol1.cols, frame_epipol1.rows);                // Создаем фрагменты для склеивания зображения
+                            Rect r2(frame_epipol2.cols, 0, frame_epipol2.cols, frame_epipol2.rows);
+                            frame_epipol1.copyTo(frame4( r1 ));
+                            frame_epipol2.copyTo(frame4( r2 ));
+                            imshow("1-2 frame", frame4);
+                        }
+                    }*/
+                }
+                frame2 = frame;
+            } else if ( button_nf == 27 ) {   // Interrupt the cycle, press "ESC"
+                break;
+            }
+        }                           // Калибровка камеры  press "с" or "C"----------------------//      step 0
         else if ( f == 2 ) {
             int successes = 0;                                      // Счетчик удачных калибровочных кадров
             int num_successes = 3;                                    // Кол-во калибровочных кадров
@@ -345,13 +438,12 @@ int main()
             for(int j = 0; j < numSquares; j++)
                 obj.push_back(Point3d(j/numCornersHor, j%numCornersHor, 0.0)); //static_cast<double>(0.0f)
 
-            int batton = 0;
-
+            int batton_calib = 0;
             while ( successes < num_successes ) {                        // Цикл для определенного числа калибровочных кадров
-                batton = static_cast<char>(waitKey(1));
-                if( batton == 27 ) {                            // Interrupt the cycle calibration, press "ESC"
+                batton_calib = waitKey(1);
+                if( batton_calib == 27 ) {                            // Interrupt the cycle calibration, press "ESC"
                     break;
-                } else if ( batton == 13 ) {                    // Take picture Chessboard, press "Enter"
+                } else if ( batton_calib == 13 ) {                    // Take picture Chessboard, press "Enter"
                     if (!cap.read(calib_frame)) {               // check if we succeeded and store frame into calib_frame
                         cerr << "ERROR! blank frame grabbed\n";
                         break;
@@ -361,19 +453,19 @@ int main()
                     bool found = findChessboardCorners(calib_frame,
                                                        board_sz,
                                                        calib_frame_corners,
-                                                       CALIB_CB_ADAPTIVE_THRESH | CALIB_CB_NORMALIZE_IMAGE); //CALIB_CB_NORMALIZE_IMAGE, CV_CALIB_CB_FILTER_QUADS
+                                                       CALIB_CB_ADAPTIVE_THRESH | CALIB_CB_NORMALIZE_IMAGE ); //CALIB_CB_NORMALIZE_IMAGE, CV_CALIB_CB_FILTER_QUADS
 
                     if (found) {    // Проверка удачно найденых углов
                         cornerSubPix(calib_frame_grey,
                                      calib_frame_corners,
                                      Size(11,11),
                                      Size(-1,-1),
-                                     TermCriteria(CV_TERMCRIT_EPS | CV_TERMCRIT_ITER, 30, 0.1));   // Уточнение углов
+                                     TermCriteria(CV_TERMCRIT_EPS | CV_TERMCRIT_ITER, 30, 0.1) );   // Уточнение углов
 
                         drawChessboardCorners(calib_frame,
                                               board_sz,
                                               calib_frame_corners,
-                                              found);                               //отрисовка углов
+                                              found );                               //отрисовка углов
 
                         image_points.push_back(calib_frame_corners);
                         object_points.push_back(obj);
@@ -381,7 +473,7 @@ int main()
 
                         successes++;
                     }
-                } else if ( (batton == 114) || (batton == 82) ) {       // Read from file, press "p" or "P"
+                } else if ( (batton_calib == 114) || (batton_calib == 82) ) {       // Read from file, press "r" or "R"
                     break;
                 }
                 cap.read(frame3);
@@ -391,11 +483,11 @@ int main()
                 calib_frame.copyTo(frame4( r2 ));
                 imshow("calibration", frame4);      // Вывод последнего удачного калибровачного кадра и кадра потока
 
-                batton = 0;
+                batton_calib = 0;
             }
             //if( batton == 27 ) break;
 
-            if (( (batton == 114) || (batton == 82) )) {
+            if (( (batton_calib == 114) || (batton_calib == 82) )) {
                 FileStorage fs; 
                 fs.open("/home/roman/Sky_points/Calibrate_cam.txt", FileStorage::READ);     // Read from file data calibration
                 fs["intrinsic"] >> intrinsic;
@@ -424,10 +516,10 @@ int main()
 
             destroyWindow("calibration");
             f = 1;
-        }         // END Калибровка камеры  --------------------------------------------------------//   END step 0
+        }                           // END Калибровка камеры  ----------------------------------//   END step 0
 
         // Обработка нажатой кнопки  --------------------------------------------------------//
-        c = static_cast<char>(waitKey(1));
+        c = waitKey(1);
         if( c == 27 ) {                             // Interrupt the cycle, press "ESC"
             break;
         } else if ( c == 13 ) {                     // Take picture, press "Enter"
@@ -443,6 +535,11 @@ int main()
             fundam.release();
         } else if ( (c == 80) || (c == 112) ) {     // Change mode camera, press "p" or "P"
             mode_cam = !mode_cam;
+            frame2 *= 0;                // Frame zeroing
+            if (mode_cam == true) {     // Закрываем окна при смене режима
+                destroyWindow("real_time");
+                destroyWindow("1-2 frame");
+            }
         } 
         // END Обработка нажатой кнопки  ----------------------------------------------------//
     }
