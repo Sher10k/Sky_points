@@ -1,3 +1,17 @@
+/*  
+ *  Горячии клавиши
+ * 
+ * "ESC" - Interrupt the cycle
+ * "Enter" - Take picture
+ * "с" & "C" - Calibrate camera
+ * "r" or "R" - Read from file, calibrate mode
+ * "0" - use default parameters, calibrate mode
+ * "f" & "F" - Output fundamental_matrix into file
+ * "m" or "M" - Change mode camera
+ * "Space" - Сделать снимок для покадрового режима
+ * 
+ */
+
 #include <iostream>
 #include <string>
 #include <stdio.h>
@@ -39,7 +53,7 @@ Mat drawlines(Mat& img1, std::vector<cv::Point3f>& line, vector<Point2f>& pts) {
 }
 
 // Find matches between points 
-unsigned long Match_find(vector<KeyPoint> kpf1, vector<KeyPoint> kpf2, Mat dpf1, Mat dpf2, vector<KeyPoint> *gp1, vector<KeyPoint> *gp2, vector<DMatch> *gm, unsigned long kn) {
+unsigned long Match_find(vector<KeyPoint> kpf1, vector<KeyPoint> kpf2, Mat dpf1, Mat dpf2, vector<KeyPoint> *gp1, vector<KeyPoint> *gp2, vector<DMatch> *gm, unsigned long kn, int  threshold) {
    
     Ptr<BFMatcher> bf = BFMatcher::create(NORM_HAMMING, true);
     BFMatcher matcher(NORM_HAMMING);    // NORM_L2
@@ -69,7 +83,7 @@ unsigned long Match_find(vector<KeyPoint> kpf1, vector<KeyPoint> kpf2, Mat dpf1,
     // Selection of key points on both frames satisfying the threshold
     temp = 0;
     for (size_t i = 0; i < matches.size(); i++) {
-        if (matches[i].distance < 10) {
+        if (matches[i].distance <  threshold) {
             int new_i = static_cast<int>( gp1->size() );
             gp1->push_back( kpf1[ static_cast<unsigned long>( matches[i].queryIdx ) ] );
             gp2->push_back( kpf2[ static_cast<unsigned long>( matches[i].trainIdx ) ] );
@@ -178,12 +192,22 @@ int main()
 
     // Для калибровки
     Mat intrinsic = Mat(3, 3, CV_32FC1);
-    Mat distCoeffs;
+    Mat distCoeffs = Mat(1, 5, CV_32FC1);
     vector<Mat> rvecs;
     vector<Mat> tvecs;
     intrinsic.ptr<float>(0)[0] = 1;
     intrinsic.ptr<float>(1)[1] = 1;
-
+    /*for (int i = 0; i < 3; i++) {
+        for (int j = 0; j < 3; j++) {
+            intrinsic.ptr<float>(i)[j] = 0;
+            //printf("intrinsic(%i, %i) = %7.5f\n", i, j, intrinsic.ptr<double>(i)[j]);
+        }
+    }
+    for (int i = 0; i < 5; i++) {
+        distCoeffs.ptr<float>(0)[i] = 0;
+        //printf("distCoeffs[ %i ] = %7.5f\n", i, distCoeffs.ptr<double>(0)[i]);
+    }*/
+    
     Mat fundamental_matrix;
 
     int c;
@@ -224,12 +248,13 @@ int main()
                 vector<KeyPoint> good_points1, good_points2;
                 t = Match_find( keypoints_frame,
                                 keypoints_frame2,
-                                descriptors_frame, 
-                                descriptors_frame2, 
-                                &good_points1, 
-                                &good_points2, 
-                                &good_matches, 
-                                key_num );                                                  // Поиск схожих точек удовлетворяющих порогу
+                                descriptors_frame,
+                                descriptors_frame2,
+                                &good_points1,
+                                &good_points2,
+                                &good_matches,
+                                key_num,
+                                20 );                                                  // Поиск схожих точек удовлетворяющих порогу
                 
                 // drawing two frames and connecting similar cue points with lines
                 drawMatches(frame, good_points1, frame2, good_points2, good_matches, res);
@@ -364,65 +389,84 @@ int main()
             int button_nf = waitKey(1);
             if ( button_nf == 32 )             // If press "space"
             {
-                frame = frame3;
+                frame3.copyTo( frame );
                 detector->detectAndCompute(frame, noArray(), keypoints_frame, descriptors_frame);       // Detected key points at frame
                 if ( !frame2.empty() ) 
                 {
                     detector->detectAndCompute(frame2, noArray(), keypoints_frame2, descriptors_frame2);    // Detected key points at frame2
-                }
-                if ((keypoints_frame.size() != 0) && (keypoints_frame2.size() != 0)) {
-                    vector<DMatch> good_matches;
-                    vector<KeyPoint> good_points1, good_points2;
-                    t = Match_find( keypoints_frame,
-                                    keypoints_frame2,
-                                    descriptors_frame, 
-                                    descriptors_frame2, 
-                                    &good_points1, 
-                                    &good_points2, 
-                                    &good_matches, 
-                                    key_num );
                     
-                    drawMatches(frame, good_points1, frame2, good_points2, good_matches, frame4);
-                    imshow("1-2 frame", frame4);
+                    RNG rng(12345);
+                    for (unsigned long i = 0; i < keypoints_frame.size(); i++) {
+                        Scalar color = Scalar( rng.uniform(0, 255), rng.uniform(0,255), rng.uniform(0,255) );
+                        circle(frame, keypoints_frame[i].pt, 3, color, 2, LINE_8, 0);
+                        circle(frame2, keypoints_frame2[i].pt, 3, color, 2, LINE_8, 0);
+                    }
                     
-                    /*if ((good_points1.size() >= 8) && (good_points2.size() >= 8)) { // Проверка на наличие точек, удовлетворяющих порогу
-                        vector<Point2f> points1(t);
-                        vector<Point2f> points2(t);
-                        vector<Point2f> status(t);
+                    if ((keypoints_frame.size() != 0) && (keypoints_frame2.size() != 0)) {
+                        vector<DMatch> good_matches;
+                        vector<KeyPoint> good_points1, good_points2;
+                        t = Match_find( keypoints_frame,
+                                        keypoints_frame2,
+                                        descriptors_frame, 
+                                        descriptors_frame2, 
+                                        &good_points1, 
+                                        &good_points2, 
+                                        &good_matches, 
+                                        key_num,
+                                        50 );
                         
-                        for (unsigned long i = 0; i < t; i++) {
-                            points1[i].x = good_points1[i].pt.x;
-                            points1[i].y = good_points1[i].pt.y;
-                            points2[i].x = good_points2[i].pt.x;
-                            points2[i].y = good_points2[i].pt.y;
-                        }
-                        fundamental_matrix = cv::findFundamentalMat(points1, points2, FM_RANSAC, 1.0, 0.99, noArray());
+                        drawMatches(frame, good_points1, frame2, good_points2, good_matches, frame4);
+                        imshow("1-2 frame", frame4);
                         
-                        if (!fundamental_matrix.empty()) {
+                        /*if ((good_points1.size() >= 8) && (good_points2.size() >= 8)) { // Проверка на наличие точек, удовлетворяющих порогу
+                            vector<Point2f> points1(t);
+                            vector<Point2f> points2(t);
+                            vector<Point2f> status(t);
                             
-                            std::vector<cv::Point3f> lines[2];
-                            cv::computeCorrespondEpilines(points1, 1 , fundamental_matrix, lines[0]);
-                            cv::computeCorrespondEpilines(points2, 2 , fundamental_matrix, lines[1]);
+                            for (unsigned long i = 0; i < t; i++) {
+                                points1[i].x = good_points1[i].pt.x;
+                                points1[i].y = good_points1[i].pt.y;
+                                points2[i].x = good_points2[i].pt.x;
+                                points2[i].y = good_points2[i].pt.y;
+                            }
+                            fundamental_matrix = cv::findFundamentalMat(points1, points2, FM_RANSAC, 1.0, 0.99, noArray());
                             
-                            Mat frame_epipol1 = drawlines(frame, lines[0], points1);
-                            Mat frame_epipol2 = drawlines(frame2, lines[1], points2);
-                                               
-                            Rect r1(0, 0, frame_epipol1.cols, frame_epipol1.rows);                // Создаем фрагменты для склеивания зображения
-                            Rect r2(frame_epipol2.cols, 0, frame_epipol2.cols, frame_epipol2.rows);
-                            frame_epipol1.copyTo(frame4( r1 ));
-                            frame_epipol2.copyTo(frame4( r2 ));
-                            imshow("1-2 frame", frame4);
-                        }
-                    }*/
-                }
-                frame2 = frame;
-            } else if ( button_nf == 27 ) {   // Interrupt the cycle, press "ESC"
+                            if (!fundamental_matrix.empty()) {
+                                
+                                std::vector<cv::Point3f> lines[2];
+                                cv::computeCorrespondEpilines(points1, 1 , fundamental_matrix, lines[0]);
+                                cv::computeCorrespondEpilines(points2, 2 , fundamental_matrix, lines[1]);
+                                
+                                Mat frame_epipol1 = drawlines(frame, lines[0], points1);
+                                Mat frame_epipol2 = drawlines(frame2, lines[1], points2);
+                                                   
+                                Rect r1(0, 0, frame_epipol1.cols, frame_epipol1.rows);                // Создаем фрагменты для склеивания зображения
+                                Rect r2(frame_epipol2.cols, 0, frame_epipol2.cols, frame_epipol2.rows);
+                                frame_epipol1.copyTo(frame4( r1 ));
+                                frame_epipol2.copyTo(frame4( r2 ));
+                                imshow("1-2 frame", frame4);
+                            }
+                        }*/
+                    }
+                }                
+                frame.copyTo( frame2 );
+                frame *= 0;
+                
+            } else if ( button_nf == 27 ) {                             // Interrupt the cycle, press "ESC"
                 break;
+            } else if ( (button_nf == 77) || (button_nf == 109) ) {     // Change mode camera, press "m" or "M"
+                mode_cam = !mode_cam;
+                frame2 *= 0;                // Frame zeroing
+                if (mode_cam == true) {     // Закрываем окна при смене режима
+                    destroyWindow("real_time");
+                    namedWindow("1-2 frame", WINDOW_AUTOSIZE);
+                    destroyWindow("1-2 frame");
+                }
             }
         }                           // Калибровка камеры  press "с" or "C"----------------------//      step 0
         else if ( f == 2 ) {
             int successes = 0;                                      // Счетчик удачных калибровочных кадров
-            int num_successes = 3;                                    // Кол-во калибровочных кадров
+            int num_successes = 10;                                    // Кол-во калибровочных кадров
             Mat calib_frame = Mat::zeros(frame.size(), CV_8UC3);      // Калибровочный кадр
             Mat calib_frame_grey = Mat::zeros(frame.size(), CV_8UC3);
 
@@ -473,7 +517,8 @@ int main()
 
                         successes++;
                     }
-                } else if ( (batton_calib == 114) || (batton_calib == 82) ) {       // Read from file, press "r" or "R"
+                } else if ( (batton_calib == 114) || (batton_calib == 82) || (batton_calib == 48) || (batton_calib == 27) ) {       
+                    // Read from file, press "r" or "R", or use default parameters, press "0", or interrupt the calibration cycle, press "ESC" 
                     break;
                 }
                 cap.read(frame3);
@@ -485,16 +530,53 @@ int main()
 
                 batton_calib = 0;
             }
-            //if( batton == 27 ) break;
 
-            if (( (batton_calib == 114) || (batton_calib == 82) )) {
+            if ( (batton_calib == 114) || (batton_calib == 82) ) {  // Read from file
                 FileStorage fs; 
                 fs.open("/home/roman/Sky_points/Calibrate_cam.txt", FileStorage::READ);     // Read from file data calibration
                 fs["intrinsic"] >> intrinsic;
                 fs["distCoeffs"] >> distCoeffs;
                 fs["rvecs"] >> rvecs;
                 fs["tvecs"] >> tvecs;
-                fs.release();                
+                fs.release();
+                
+                for (int i = 0; i < 3; i++) {
+                    for (int j = 0; j < 3; j++) {
+                        printf("intrinsic(%i, %i) = %7.5f\n", i, j, intrinsic.ptr<double>(i)[j]);
+                    }
+                }
+                for (int i = 0; i < 5; i++) {
+                    printf("distCoeffs[ %i ] = %7.5f\n", i, distCoeffs.ptr<double>(0)[i]);
+                }
+                printf("\n");
+                
+            } else if (batton_calib == 48) {    // use default parameters                
+                intrinsic.ptr<double>(0)[0] = 1;
+                intrinsic.ptr<double>(1)[1] = 1;
+                intrinsic.ptr<double>(0)[2] = 0;
+                intrinsic.ptr<double>(1)[2] = 0;
+                intrinsic.ptr<double>(2)[2] = 1;
+                for (int i = 0; i < 5; i++) {
+                    //distCoeffs.at<float>(0, i) = 0;
+                    distCoeffs.ptr<double>(0)[i] = 0;
+                }
+                for (int i = 0; i < 3; i++) {
+                    for (int j = 0; j < 3; j++) {
+                        printf("intrinsic(%i, %i) = %7.5f\n", i, j, intrinsic.ptr<double>(i)[j]);
+                    }
+                }
+                for (int i = 0; i < 5; i++) {
+                    printf("distCoeffs[ %i ] = %7.5f\n", i, distCoeffs.ptr<double>(0)[i]);
+                }
+                printf("\n");
+                
+                FileStorage fs;
+                fs.open("/home/roman/Sky_points/Calibrate_cam_Zero.txt", FileStorage::WRITE);    // Write in file data calibration
+                fs << "intrinsic" << intrinsic;
+                fs << "distCoeffs" << distCoeffs;
+                fs.release();
+            } else if (batton_calib == 27) {    // interrupt the calibration cycle
+                break;
             } else {
                 calibrateCamera(object_points,
                                 image_points,
@@ -513,7 +595,8 @@ int main()
                 fs << "tvecs" << tvecs;
                 fs.release();
             }            
-
+            
+            namedWindow("calibration", WINDOW_AUTOSIZE);
             destroyWindow("calibration");
             f = 1;
         }                           // END Калибровка камеры  ----------------------------------//   END step 0
@@ -533,7 +616,7 @@ int main()
             fundam.open("/home/roman/Sky_points/Fundamental_matrix.txt", FileStorage::WRITE);
             fundam << "fundamental_matrix" << fundamental_matrix;
             fundam.release();
-        } else if ( (c == 80) || (c == 112) ) {     // Change mode camera, press "p" or "P"
+        } else if ( (c == 77) || (c == 109) ) {     // Change mode camera, press "m" or "M"
             mode_cam = !mode_cam;
             frame2 *= 0;                // Frame zeroing
             if (mode_cam == true) {     // Закрываем окна при смене режима
