@@ -35,6 +35,7 @@ LIBS += -lopencv_core \
         -lopencv_highgui \
         -lopencv_objdetect \
         -lopencv_features2d \
+        -lopencv_xfeatures2d \
         -lopencv_videoio \
         -lopencv_tracking \
         -lopencv_calib3d \

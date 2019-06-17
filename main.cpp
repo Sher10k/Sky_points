@@ -20,12 +20,14 @@
 //#include <opencv2/core/types_c.h>
 //#include <opencv2/core/utility.hpp>
 //#include <opencv2/core/ocl.hpp>
-#include <opencv2/videoio.hpp>
+//#include <opencv2/videoio.hpp>
 #include <opencv2/imgproc.hpp>
-#include <opencv2/imgproc/imgproc_c.h>
+//#include <opencv2/imgproc/imgproc_c.h>
 #include <opencv2/highgui.hpp>
 //#include <opencv2/video/tracking.hpp>
-//#include <opencv2/features2d.hpp>
+#include <opencv2/features2d.hpp>
+#include <opencv2/xfeatures2d.hpp>
+//#include <opencv2/xfeatures2d/nonfree.hpp>
 #include <opencv2/calib3d.hpp>  // For FundamentalMat
 //#include <opencv2/sfm.hpp>
 
@@ -56,7 +58,7 @@ Mat drawlines(Mat& img1, std::vector<cv::Point3f>& line, vector<Point2f>& pts) {
 unsigned long Match_find(vector<KeyPoint> kpf1, vector<KeyPoint> kpf2, Mat dpf1, Mat dpf2, vector<KeyPoint> *gp1, vector<KeyPoint> *gp2, vector<DMatch> *gm, unsigned long kn, int  threshold) {
    
     Ptr<BFMatcher> bf = BFMatcher::create(NORM_HAMMING, true);
-    BFMatcher matcher(NORM_HAMMING);    // NORM_L2
+    BFMatcher matcher(NORM_HAMMING);    // NORM_L2, NORM_HAMMING
     vector<DMatch> matches;
     DMatch dist1, dist2;
     
@@ -175,12 +177,13 @@ int main()
     frame_pause = frame_pause / 30 * 1000;  // Convertion from frames per second to msec
 
     // ORB keypoint
-    unsigned long key_num = 100;  // Num keypoint
-    Ptr<FeatureDetector> detector = ORB::create(static_cast<int>(key_num), 1.2f, 4, 31, 0, 2, ORB::HARRIS_SCORE, 31);
-    vector<KeyPoint> keypoints_frame, keypoints_frame2;
+    unsigned long key_num = 200;  // Num keypoint
+    Ptr<FeatureDetector> detector = ORB::create(static_cast<int>(key_num), 1.2f, 8, 31, 0, 4, ORB::HARRIS_SCORE, 31);   // HARRIS_SCORE, FAST_SCORE
+    //Ptr<SURF> detector = SURF::create(static_cast<double>(key_num), 4, 3, true, false);   // cv::xfeatures2d::
+    std::vector<KeyPoint> keypoints_frame, keypoints_frame2;
     Mat descriptors_frame, descriptors_frame2;
 
-    // Brute-Force Matcher
+    // Brute-Force Matcher1
     /*-----------------*/
 
     unsigned long t = 0;              // Счетчик найденых точек
@@ -191,13 +194,18 @@ int main()
     namedWindow("frame_epipol_double", WINDOW_AUTOSIZE);                    // Window for output result
 
     // Для калибровки
-    Mat intrinsic = Mat(3, 3, CV_32FC1);
-    Mat distCoeffs = Mat(1, 5, CV_32FC1);
+    Matx33d intrinsic = Matx33d( 1, 0, 0,
+                                 0, 1, 0,
+                                 0, 0, 1);
+    Matx<double, 1, 5> distCoeffs = Matx<double, 1, 5>(0, 0, 0, 0, 0);
     vector<Mat> rvecs;
     vector<Mat> tvecs;
+
+    /*Mat distCoeffs = Mat(1, 5, CV_32FC1);  // Старая инициализация переменной
+    Mat intrinsic = Mat(3, 3, CV_32FC1);
     intrinsic.ptr<float>(0)[0] = 1;
     intrinsic.ptr<float>(1)[1] = 1;
-    /*for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < 3; i++) {
         for (int j = 0; j < 3; j++) {
             intrinsic.ptr<float>(i)[j] = 0;
             //printf("intrinsic(%i, %i) = %7.5f\n", i, j, intrinsic.ptr<double>(i)[j]);
@@ -232,13 +240,24 @@ int main()
             //cout << "//---------------------------  = " << frame_pause <<endl;*/
             // End Delay frame2         --------------------------------------------------------//
 
+            // Находим оптимальное преобразование, 
+            // согласующееся с большинством пар точек. 
+            /*vector<Point2f> pt1, pt2; 
+            for( size_t i = 0; i < matches.size(); i++ ) { 
+             pt1.push_back(keypoints1[matches[i].queryIdx].pt); 
+             pt2.push_back(keypoints2[matches[i].trainIdx].pt); 
+            } 
+            // H – это матрица оптимального перспективного 
+            // преобразования от img1 к img2 
+            Mat H = findHomography(pt1, pt2, RANSAC, 10); */
+            
             // ORB detector        -------------------------------------------------------------//      step 1
             if (!cap.read(frameImg2)) { // check if we succeeded and store new frame into 'frameImg2'
                 cerr << "ERROR! blank frame grabbed\n";
                 break;
             }
             undistort(frameImg2, frame2, intrinsic, distCoeffs);
-
+            
             detector->detectAndCompute(frame, noArray(), keypoints_frame, descriptors_frame);       // Detected key points at frame
             detector->detectAndCompute(frame2, noArray(), keypoints_frame2, descriptors_frame2);    // Detected key points at frame2
 
@@ -273,14 +292,14 @@ int main()
                         points2[i].y = good_points2[i].pt.y;
                     }
                     fundamental_matrix = cv::findFundamentalMat(points1, points2, FM_RANSAC, 1.0, 0.99, noArray());
-//                    for(int i = 0; i < fundamental_matrix.rows; i++){     // Отображение элементов 
-//                        for(int j = 0; j < fundamental_matrix.cols; j++){
-//                            //printf("fundamental_matrix[%.0f ", ptr[j]);
-//                            printf("fundamental_matrix [ %i ][ %i ] = %5.7f\n", i, j, fundamental_matrix.at<double>(j,i));
-//                        }
-//                        //printf("\n");
-//                    }
-//                    //printf("-----\n");
+                    /*for(int i = 0; i < fundamental_matrix.rows; i++){     // Отображение элементов 
+                        for(int j = 0; j < fundamental_matrix.cols; j++){
+                            //printf("fundamental_matrix[%.0f ", ptr[j]);
+                            printf("fundamental_matrix [ %i ][ %i ] = %5.7f\n", i, j, fundamental_matrix.at<double>(j,i));
+                        }
+                        //printf("\n");
+                    }
+                    //printf("-----\n");*/
                     // END FindFundamentalMat     ---------------------------------------------------------//   END step 2
                     
                     if (!fundamental_matrix.empty()) {  // Draw epilines between two image     -------------//      step 3
@@ -288,7 +307,7 @@ int main()
                         std::vector<cv::Point3f> lines[2];
                         cv::computeCorrespondEpilines(points1, 1 , fundamental_matrix, lines[0]);
                         cv::computeCorrespondEpilines(points2, 2 , fundamental_matrix, lines[1]);
-                        
+                                                
                         Mat frame_epipol1 = drawlines(frame, lines[0], points1);
                         Mat frame_epipol2 = drawlines(frame2, lines[1], points2);
                                            
@@ -492,7 +511,7 @@ int main()
                         cerr << "ERROR! blank frame grabbed\n";
                         break;
                     }
-                    cvtColor(calib_frame, calib_frame_grey, CV_BGR2GRAY);
+                    cvtColor(calib_frame, calib_frame_grey, COLOR_BGR2GRAY);   //CV_BGR2GRAY
                         // Поиск углов на шахматной доске
                     bool found = findChessboardCorners(calib_frame,
                                                        board_sz,
@@ -504,7 +523,7 @@ int main()
                                      calib_frame_corners,
                                      Size(11,11),
                                      Size(-1,-1),
-                                     TermCriteria(CV_TERMCRIT_EPS | CV_TERMCRIT_ITER, 30, 0.1) );   // Уточнение углов
+                                     TermCriteria(TermCriteria::EPS | TermCriteria::MAX_ITER, 30, 0.1) );   // Уточнение углов
 
                         drawChessboardCorners(calib_frame,
                                               board_sz,
@@ -540,43 +559,23 @@ int main()
                 fs["tvecs"] >> tvecs;
                 fs.release();
                 
-                for (int i = 0; i < 3; i++) {
-                    for (int j = 0; j < 3; j++) {
-                        printf("intrinsic(%i, %i) = %7.5f\n", i, j, intrinsic.ptr<double>(i)[j]);
-                    }
-                }
-                for (int i = 0; i < 5; i++) {
-                    printf("distCoeffs[ %i ] = %7.5f\n", i, distCoeffs.ptr<double>(0)[i]);
-                }
-                printf("\n");
-                
-            } else if (batton_calib == 48) {    // use default parameters                
-                intrinsic.ptr<double>(0)[0] = 1;
-                intrinsic.ptr<double>(1)[1] = 1;
-                intrinsic.ptr<double>(0)[2] = 0;
-                intrinsic.ptr<double>(1)[2] = 0;
-                intrinsic.ptr<double>(2)[2] = 1;
-                for (int i = 0; i < 5; i++) {
-                    //distCoeffs.at<float>(0, i) = 0;
-                    distCoeffs.ptr<double>(0)[i] = 0;
-                }
-                for (int i = 0; i < 3; i++) {
-                    for (int j = 0; j < 3; j++) {
-                        printf("intrinsic(%i, %i) = %7.5f\n", i, j, intrinsic.ptr<double>(i)[j]);
-                    }
-                }
-                for (int i = 0; i < 5; i++) {
-                    printf("distCoeffs[ %i ] = %7.5f\n", i, distCoeffs.ptr<double>(0)[i]);
-                }
-                printf("\n");
+            } else if (batton_calib == 48) {    // use default parameters   
+                intrinsic(0, 0) = 1;
+                intrinsic(1, 1) = 1;
+                intrinsic(0, 2) = 0;
+                intrinsic(1, 2) = 0;
+                intrinsic(2, 2) = 1;
+                for (int i = 0; i < 5; i++) distCoeffs(0, i) = 0;
                 
                 FileStorage fs;
                 fs.open("/home/roman/Sky_points/Calibrate_cam_Zero.txt", FileStorage::WRITE);    // Write in file data calibration
                 fs << "intrinsic" << intrinsic;
                 fs << "distCoeffs" << distCoeffs;
                 fs.release();
+                
             } else if (batton_calib == 27) {    // interrupt the calibration cycle
                 break;
+                
             } else {
                 calibrateCamera(object_points,
                                 image_points,
@@ -586,7 +585,6 @@ int main()
                                 rvecs,
                                 tvecs,
                                 CALIB_FIX_K4|CALIB_FIX_K5);                                 // Calibrate
-    
                 FileStorage fs;
                 fs.open("/home/roman/Sky_points/Calibrate_cam.txt", FileStorage::WRITE);    // Write in file data calibration
                 fs << "intrinsic" << intrinsic;
