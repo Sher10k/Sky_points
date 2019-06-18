@@ -26,17 +26,22 @@ else: unix:!android: target.path = /opt/$${TARGET}/bin
 #include( $$VLIBS_DIR/vopencv/vopencv.pri)
 #DISTFILES +=
 
-INCLUDEPATH += /usr/local/include/opencv4
-LIBS += -L/usr/local/lib
+CONFIG      *= link_pkgconfig
+PKGCONFIG   *= opencv4
 
-LIBS += -lopencv_core \
-        -lopencv_imgproc \
-        -lopencv_imgcodecs \
-        -lopencv_highgui \
-        -lopencv_objdetect \
-        -lopencv_features2d \
-        -lopencv_xfeatures2d \
-        -lopencv_videoio \
-        -lopencv_tracking \
-        -lopencv_calib3d \
-        -lopencv_sfm
+#INCLUDEPATH += /usr/local/include/opencv4
+#LIBS += -L/usr/local/lib
+
+#LIBS += -lopencv_core \
+#        -lopencv_imgproc \
+#        -lopencv_imgcodecs \
+#        -lopencv_highgui \
+#        -lopencv_objdetect \
+#        -lopencv_features2d \
+#        -lopencv_xfeatures2d \
+#        -lopencv_videoio \
+#        -lopencv_tracking \
+#        -lopencv_calib3d \
+#        -lopencv_sfm
+
+HEADERS +=

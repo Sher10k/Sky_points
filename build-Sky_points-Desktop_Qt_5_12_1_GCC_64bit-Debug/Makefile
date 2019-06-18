@@ -17,7 +17,7 @@ CXX           = g++
 DEFINES       = -DQT_DEPRECATED_WARNINGS -DQT_QML_DEBUG -DQT_CORE_LIB
 CFLAGS        = -pipe -g -Wall -W -D_REENTRANT -fPIC $(DEFINES)
 CXXFLAGS      = -pipe -g -std=gnu++11 -Wall -W -D_REENTRANT -fPIC $(DEFINES)
-INCPATH       = -I../../Sky_points -I. -isystem /usr/local/include/opencv4 -I/opt/Qt/5.12.1/gcc_64/include -I/opt/Qt/5.12.1/gcc_64/include/QtCore -I. -I/opt/Qt/5.12.1/gcc_64/mkspecs/linux-g++
+INCPATH       = -I../../Sky_points -I. -isystem /usr/local/include/opencv4/opencv -isystem /usr/local/include/opencv4 -I/opt/Qt/5.12.1/gcc_64/include -I/opt/Qt/5.12.1/gcc_64/include/QtCore -I. -I/opt/Qt/5.12.1/gcc_64/mkspecs/linux-g++
 QMAKE         = /opt/Qt/5.12.1/gcc_64/bin/qmake
 DEL_FILE      = rm -f
 CHK_DIR_EXISTS= test -d
@@ -40,7 +40,7 @@ DISTNAME      = Sky_points1.0.0
 DISTDIR = /home/roman/Sky_points/build-Sky_points-Desktop_Qt_5_12_1_GCC_64bit-Debug/.tmp/Sky_points1.0.0
 LINK          = g++
 LFLAGS        = -Wl,-rpath,/opt/Qt/5.12.1/gcc_64/lib
-LIBS          = $(SUBLIBS) -L/usr/local/lib -lopencv_core -lopencv_imgproc -lopencv_imgcodecs -lopencv_highgui -lopencv_objdetect -lopencv_features2d -lopencv_xfeatures2d -lopencv_videoio -lopencv_tracking -lopencv_calib3d -lopencv_sfm -L/opt/Qt/5.12.1/gcc_64/lib -lQt5Core -lpthread   
+LIBS          = $(SUBLIBS) -L/usr/local/lib -lopencv_gapi -lopencv_stitching -lopencv_aruco -lopencv_bgsegm -lopencv_bioinspired -lopencv_ccalib -lopencv_cudabgsegm -lopencv_cudafeatures2d -lopencv_cudaobjdetect -lopencv_cudastereo -lopencv_dnn_objdetect -lopencv_dpm -lopencv_face -lopencv_freetype -lopencv_fuzzy -lopencv_hfs -lopencv_img_hash -lopencv_line_descriptor -lopencv_quality -lopencv_reg -lopencv_rgbd -lopencv_saliency -lopencv_sfm -lopencv_stereo -lopencv_structured_light -lopencv_phase_unwrapping -lopencv_superres -lopencv_cudacodec -lopencv_surface_matching -lopencv_tracking -lopencv_datasets -lopencv_text -lopencv_highgui -lopencv_dnn -lopencv_plot -lopencv_videostab -lopencv_cudaoptflow -lopencv_optflow -lopencv_cudalegacy -lopencv_video -lopencv_videoio -lopencv_cudawarping -lopencv_xfeatures2d -lopencv_shape -lopencv_ml -lopencv_ximgproc -lopencv_xobjdetect -lopencv_objdetect -lopencv_calib3d -lopencv_imgcodecs -lopencv_features2d -lopencv_flann -lopencv_xphoto -lopencv_photo -lopencv_cudaimgproc -lopencv_cudafilters -lopencv_imgproc -lopencv_cudaarithm -lopencv_core -lopencv_cudev -L/opt/Qt/5.12.1/gcc_64/lib -lQt5Core -lpthread   
 AR            = ar cqs
 RANLIB        = 
 SED           = sed
@@ -211,6 +211,7 @@ DIST          = /opt/Qt/5.12.1/gcc_64/mkspecs/features/spec_pre.prf \
 		/opt/Qt/5.12.1/gcc_64/mkspecs/features/default_pre.prf \
 		/opt/Qt/5.12.1/gcc_64/mkspecs/features/resolve_config.prf \
 		/opt/Qt/5.12.1/gcc_64/mkspecs/features/default_post.prf \
+		/opt/Qt/5.12.1/gcc_64/mkspecs/features/link_pkgconfig.prf \
 		/opt/Qt/5.12.1/gcc_64/mkspecs/features/qml_debug.prf \
 		/opt/Qt/5.12.1/gcc_64/mkspecs/features/warn_on.prf \
 		/opt/Qt/5.12.1/gcc_64/mkspecs/features/qt.prf \
@@ -392,6 +393,7 @@ Makefile: ../Sky_points.pro /opt/Qt/5.12.1/gcc_64/mkspecs/linux-g++/qmake.conf /
 		/opt/Qt/5.12.1/gcc_64/mkspecs/features/default_pre.prf \
 		/opt/Qt/5.12.1/gcc_64/mkspecs/features/resolve_config.prf \
 		/opt/Qt/5.12.1/gcc_64/mkspecs/features/default_post.prf \
+		/opt/Qt/5.12.1/gcc_64/mkspecs/features/link_pkgconfig.prf \
 		/opt/Qt/5.12.1/gcc_64/mkspecs/features/qml_debug.prf \
 		/opt/Qt/5.12.1/gcc_64/mkspecs/features/warn_on.prf \
 		/opt/Qt/5.12.1/gcc_64/mkspecs/features/qt.prf \
@@ -564,6 +566,7 @@ Makefile: ../Sky_points.pro /opt/Qt/5.12.1/gcc_64/mkspecs/linux-g++/qmake.conf /
 /opt/Qt/5.12.1/gcc_64/mkspecs/features/default_pre.prf:
 /opt/Qt/5.12.1/gcc_64/mkspecs/features/resolve_config.prf:
 /opt/Qt/5.12.1/gcc_64/mkspecs/features/default_post.prf:
+/opt/Qt/5.12.1/gcc_64/mkspecs/features/link_pkgconfig.prf:
 /opt/Qt/5.12.1/gcc_64/mkspecs/features/qml_debug.prf:
 /opt/Qt/5.12.1/gcc_64/mkspecs/features/warn_on.prf:
 /opt/Qt/5.12.1/gcc_64/mkspecs/features/qt.prf:

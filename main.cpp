@@ -11,13 +11,17 @@
  * "Space" - Сделать снимок для покадрового режима
  * 
  */
+#define CERES_FOUND true
+#define OPENCV_TRAITS_ENABLE_DEPRECATED
 
 #include <iostream>
 #include <string>
 #include <stdio.h>
 
 #include <opencv2/core.hpp>
+#include <opencv2/core/mat.hpp>
 //#include <opencv2/core/types_c.h>
+//#include <opencv2/core/types.hpp>
 //#include <opencv2/core/utility.hpp>
 //#include <opencv2/core/ocl.hpp>
 //#include <opencv2/videoio.hpp>
@@ -29,11 +33,19 @@
 #include <opencv2/xfeatures2d.hpp>
 //#include <opencv2/xfeatures2d/nonfree.hpp>
 #include <opencv2/calib3d.hpp>  // For FundamentalMat
-//#include <opencv2/sfm.hpp>
 
-using namespace cv;
+#include <opencv2/sfm.hpp>
+#include <opencv2/sfm/simple_pipeline.hpp>
+#include <opencv2/sfm/reconstruct.hpp>
+//#include <opencv2/sfm/robust.hpp>
+#include <opencv2/sfm/triangulation.hpp>
+
 using namespace std;
-//using namespace cv::sfm;
+using namespace cv;
+using namespace cv::sfm;
+
+#define FRAME_WIDTH 640
+#define FRAME_HEIGHT 480
 
 Mat drawlines(Mat& img1, std::vector<cv::Point3f>& line, vector<Point2f>& pts) {         // Draw epipolar lines
     
@@ -58,7 +70,7 @@ Mat drawlines(Mat& img1, std::vector<cv::Point3f>& line, vector<Point2f>& pts) {
 unsigned long Match_find(vector<KeyPoint> kpf1, vector<KeyPoint> kpf2, Mat dpf1, Mat dpf2, vector<KeyPoint> *gp1, vector<KeyPoint> *gp2, vector<DMatch> *gm, unsigned long kn, int  threshold) {
    
     Ptr<BFMatcher> bf = BFMatcher::create(NORM_HAMMING, true);
-    BFMatcher matcher(NORM_HAMMING);    // NORM_L2, NORM_HAMMING
+    BFMatcher matcher(NORM_HAMMING, false);    // NORM_L2, NORM_HAMMING
     vector<DMatch> matches;
     DMatch dist1, dist2;
     
@@ -118,8 +130,8 @@ int main()
         return -1;
     }
     else {  //  Info about frame
-        cap.set(CAP_PROP_FRAME_WIDTH, 640); //320, 640, (640, 1280)
-        cap.set(CAP_PROP_FRAME_HEIGHT, 480);   //240, 480, (360, 720)
+        cap.set(CAP_PROP_FRAME_WIDTH, FRAME_WIDTH); //320, 640, (640, 1280)
+        cap.set(CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT);   //240, 480, (360, 720)
         cap.set(CAP_PROP_POS_FRAMES, 0);
         cap.read(frame);
 
@@ -194,10 +206,10 @@ int main()
     namedWindow("frame_epipol_double", WINDOW_AUTOSIZE);                    // Window for output result
 
     // Для калибровки
-    Matx33d intrinsic = Matx33d( 1, 0, 0,
-                                 0, 1, 0,
-                                 0, 0, 1);
-    Matx<double, 1, 5> distCoeffs = Matx<double, 1, 5>(0, 0, 0, 0, 0);
+    Matx33d intrinsic = Matx33d( 10,     0,  FRAME_WIDTH/2,
+                                 0,     10,  FRAME_HEIGHT/2,
+                                 0,     0,  1);
+    Matx<double, 1, 5> distCoeffs = Matx<double, 1, 5>(0.0, 0.0, 0.0, 0.0, 0.0);  // (k1, k2, p1, p2, k3)
     vector<Mat> rvecs;
     vector<Mat> tvecs;
 
@@ -218,6 +230,29 @@ int main()
     
     Mat fundamental_matrix;
 
+    // Array of array for frames key points
+    vector<vector<Point2d>> points2frame(2);
+    //vector<vector<KeyPoint>> points2frame(2);
+    //vector<vector<Mat>> points2frame(2);
+    Matx34d P1, P2;
+    //vector<Matx34d> Ps;
+    vector<Mat> Ps, points_3d;
+    
+    
+    
+    // SFM camera
+    cv::sfm::libmv_CameraIntrinsicsOptions camera {SFM_DISTORTION_MODEL_DIVISION, 
+                                                    intrinsic(0, 0), 
+                                                    intrinsic(1, 1), 
+                                                    intrinsic(0, 2), 
+                                                    intrinsic(1, 2),
+                                                    distCoeffs(0, 0),
+                                                    distCoeffs(0, 1),
+                                                    distCoeffs(0, 4),
+                                                    distCoeffs(0, 2),
+                                                    distCoeffs(0, 3)};
+    
+    
     int c;
     while(1) {                      // Основной режим работы камеры, потоковый режим
         if ( (f == 1) && (mode_cam == true) ) {   
@@ -414,14 +449,14 @@ int main()
                 {
                     detector->detectAndCompute(frame2, noArray(), keypoints_frame2, descriptors_frame2);    // Detected key points at frame2
                     
-                    RNG rng(12345);
+                    RNG rng(12345);     // Drawing found key points 
                     for (unsigned long i = 0; i < keypoints_frame.size(); i++) {
                         Scalar color = Scalar( rng.uniform(0, 255), rng.uniform(0,255), rng.uniform(0,255) );
                         circle(frame, keypoints_frame[i].pt, 3, color, 2, LINE_8, 0);
                         circle(frame2, keypoints_frame2[i].pt, 3, color, 2, LINE_8, 0);
                     }
                     
-                    if ((keypoints_frame.size() != 0) && (keypoints_frame2.size() != 0)) {
+                    if ((keypoints_frame.size() != 0) && (keypoints_frame2.size() != 0)) {  // Matching key points
                         vector<DMatch> good_matches;
                         vector<KeyPoint> good_points1, good_points2;
                         t = Match_find( keypoints_frame,
@@ -432,10 +467,18 @@ int main()
                                         &good_points2, 
                                         &good_matches, 
                                         key_num,
-                                        50 );
-                        
+                                        20 );
                         drawMatches(frame, good_points1, frame2, good_points2, good_matches, frame4);
                         imshow("1-2 frame", frame4);
+                        
+                        
+                        
+                        for (unsigned int i = 0; i < good_points1.size(); i++) { // Unioning the key points in new variable
+                            points2frame[0].push_back(good_points1[i].pt);
+                            points2frame[1].push_back(good_points2[i].pt);
+                        }
+                        
+                        sfm::reconstruct(points2frame, Ps, points_3d, intrinsic, true);
                         
                         /*if ((good_points1.size() >= 8) && (good_points2.size() >= 8)) { // Проверка на наличие точек, удовлетворяющих порогу
                             vector<Point2f> points1(t);
@@ -450,22 +493,35 @@ int main()
                             }
                             fundamental_matrix = cv::findFundamentalMat(points1, points2, FM_RANSAC, 1.0, 0.99, noArray());
                             
-                            if (!fundamental_matrix.empty()) {
-                                
-                                std::vector<cv::Point3f> lines[2];
-                                cv::computeCorrespondEpilines(points1, 1 , fundamental_matrix, lines[0]);
-                                cv::computeCorrespondEpilines(points2, 2 , fundamental_matrix, lines[1]);
-                                
-                                Mat frame_epipol1 = drawlines(frame, lines[0], points1);
-                                Mat frame_epipol2 = drawlines(frame2, lines[1], points2);
-                                                   
-                                Rect r1(0, 0, frame_epipol1.cols, frame_epipol1.rows);                // Создаем фрагменты для склеивания зображения
-                                Rect r2(frame_epipol2.cols, 0, frame_epipol2.cols, frame_epipol2.rows);
-                                frame_epipol1.copyTo(frame4( r1 ));
-                                frame_epipol2.copyTo(frame4( r2 ));
-                                imshow("1-2 frame", frame4);
+                            if (!fundamental_matrix.empty()) {  // Проверка на пустотности фундаментальной матрицы
+                                fm::projectionsFromFundamental(fundamental_matrix, P1, P2);    // Расчет матриц проекции
+                                Ps.push_back(P1);
+                                Ps.push_back(P2);
+                                triangulatePoints(points2frame, Ps, points_3d);
                             }
                         }*/
+                        
+                        //projectionsFromFundamental(F, P, Pp);
+                        
+                        //reconstruct(points2frame, Ps, points_3d, intrinsic, true);
+                        // OpenCV data types
+                        /*std::vector<Mat> pts2d;
+                        points2frame
+                        points2d.getMatVector(pts2d);
+                        const int depth = pts2d[0].depth();
+                        
+                        // Get Projection matrices
+                        Matx33d F;
+                        Matx34d P, Pp;
+                
+                        normalizedEightPointSolver(pts2d[0], pts2d[1], F);
+                        projectionsFromFundamental(F, P, Pp);
+                        Ps.create(2, 1, depth);
+                        Mat(P).copyTo(Ps.getMatRef(0));
+                        Mat(Pp).copyTo(Ps.getMatRef(1));
+                
+                        // Triangulate and find 3D points using inliers
+                        triangulatePoints(points2d, Ps, points3d);*/
                     }
                 }                
                 frame.copyTo( frame2 );
@@ -560,12 +616,17 @@ int main()
                 fs.release();
                 
             } else if (batton_calib == 48) {    // use default parameters   
-                intrinsic(0, 0) = 1;
-                intrinsic(1, 1) = 1;
-                intrinsic(0, 2) = 0;
-                intrinsic(1, 2) = 0;
+                intrinsic(0, 0) = 600;  // fx
+                intrinsic(1, 1) = 600;  // fy
+                intrinsic(0, 2) = 320;  // Cx, half of width frame
+                intrinsic(1, 2) = 240;  // Cy, half of hight frame
                 intrinsic(2, 2) = 1;
-                for (int i = 0; i < 5; i++) distCoeffs(0, i) = 0;
+                //for (int i = 0; i < 5; i++) distCoeffs(0, i) = 0;
+                distCoeffs(0, 0) = 0.0; // k1
+                distCoeffs(0, 1) = 0.0; // k2
+                distCoeffs(0, 2) = 0.0; // p1
+                distCoeffs(0, 3) = 0.0; // p2
+                distCoeffs(0, 4) = 0.0; // k3
                 
                 FileStorage fs;
                 fs.open("/home/roman/Sky_points/Calibrate_cam_Zero.txt", FileStorage::WRITE);    // Write in file data calibration
@@ -584,7 +645,7 @@ int main()
                                 distCoeffs,
                                 rvecs,
                                 tvecs,
-                                CALIB_FIX_K4|CALIB_FIX_K5);                                 // Calibrate
+                                CALIB_FIX_K1 | CALIB_FIX_K2 | CALIB_FIX_K3);                                 // Calibrate  | CALIB_FIX_K6
                 FileStorage fs;
                 fs.open("/home/roman/Sky_points/Calibrate_cam.txt", FileStorage::WRITE);    // Write in file data calibration
                 fs << "intrinsic" << intrinsic;
