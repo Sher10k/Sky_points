@@ -43,11 +43,12 @@
 using namespace std;
 using namespace cv;
 using namespace cv::sfm;
+using namespace cv::xfeatures2d;
 
 #define FRAME_WIDTH 640
 #define FRAME_HEIGHT 480
 
-Mat drawlines(Mat& img1, std::vector<cv::Point3f>& line, vector<Point2f>& pts) {         // Draw epipolar lines
+void drawlines(Mat& in_img, std::vector<cv::Point3f>& line, vector<Point2f>& pts) {         // Draw epipolar lines
     
     /*for (int i = 0; i < line.size(); i++) {
         printf("line [ %i ] = X %5.7f, Y %5.7f, Z %5.7f\n", i, line[i].x, line[i].y, line[i].z);
@@ -58,12 +59,11 @@ Mat drawlines(Mat& img1, std::vector<cv::Point3f>& line, vector<Point2f>& pts) {
         Scalar color = Scalar( rng.uniform(0, 255), rng.uniform(0,255), rng.uniform(0,255) );
         int x0 = 0;
         int y0 = static_cast<int>(-line[i].z / line[i].y);
-        int x1 = img1.cols;
+        int x1 = in_img.cols;
         int y1 = static_cast<int>(-(line[i].z + line[i].x * x1) / line[i].y);
-        cv::line(img1, cv::Point(x0, y0), cv::Point(x1, y1), color, 1, LINE_4, 0);
-        cv::circle(img1, pts[i], 5, color, -1);
-    }    
-    return img1;
+        cv::line(in_img, cv::Point(x0, y0), cv::Point(x1, y1), color, 1, LINE_4, 0);
+        cv::circle(in_img, pts[i], 5, color, -1);
+    }
 }
 
 // Find matches between points 
@@ -186,12 +186,14 @@ int main()
         cout << "Estimated frames per second : " << fps << endl;
     }*/ //                    ----------------------------------------------------------//
 
+    
+    // VARIABLES
     frame_pause = frame_pause / 30 * 1000;  // Convertion from frames per second to msec
 
     // ORB keypoint
-    unsigned long key_num = 200;  // Num keypoint
+    unsigned long key_num = 5;  // Num keypoint
     Ptr<FeatureDetector> detector = ORB::create(static_cast<int>(key_num), 1.2f, 8, 31, 0, 4, ORB::HARRIS_SCORE, 31);   // HARRIS_SCORE, FAST_SCORE
-    //Ptr<SURF> detector = SURF::create(static_cast<double>(key_num), 4, 3, true, false);   // cv::xfeatures2d::
+    //Ptr<SURF> detectorSURF = cv::xfeatures2d::SURF::create(static_cast<double>(key_num), 4, 3, true, false);   // cv::xfeatures2d::
     std::vector<KeyPoint> keypoints_frame, keypoints_frame2;
     Mat descriptors_frame, descriptors_frame2;
 
@@ -212,7 +214,6 @@ int main()
     Matx<double, 1, 5> distCoeffs = Matx<double, 1, 5>(0.0, 0.0, 0.0, 0.0, 0.0);  // (k1, k2, p1, p2, k3)
     vector<Mat> rvecs;
     vector<Mat> tvecs;
-
     /*Mat distCoeffs = Mat(1, 5, CV_32FC1);  // Старая инициализация переменной
     Mat intrinsic = Mat(3, 3, CV_32FC1);
     intrinsic.ptr<float>(0)[0] = 1;
@@ -228,8 +229,13 @@ int main()
         //printf("distCoeffs[ %i ] = %7.5f\n", i, distCoeffs.ptr<double>(0)[i]);
     }*/
     
+    //  Fundamental matrix
     Mat fundamental_matrix;
 
+    //  Epipolar linu
+    std::vector<cv::Point3f> lines[2];
+    Mat frame_epipol1, frame_epipol2;
+    
     // Array of array for frames key points
     vector<vector<Point2d>> points2frame(2);
     //vector<vector<KeyPoint>> points2frame(2);
@@ -339,17 +345,16 @@ int main()
                     
                     if (!fundamental_matrix.empty()) {  // Draw epilines between two image     -------------//      step 3
                         
-                        std::vector<cv::Point3f> lines[2];
                         cv::computeCorrespondEpilines(points1, 1 , fundamental_matrix, lines[0]);
                         cv::computeCorrespondEpilines(points2, 2 , fundamental_matrix, lines[1]);
                                                 
-                        Mat frame_epipol1 = drawlines(frame, lines[0], points1);
-                        Mat frame_epipol2 = drawlines(frame2, lines[1], points2);
+                        drawlines(frame, lines[0], points1);
+                        drawlines(frame2, lines[1], points2);
                                            
-                        Rect r1(0, 0, frame_epipol1.cols, frame_epipol1.rows);                // Создаем фрагменты для склеивания зображения
-                        Rect r2(frame_epipol2.cols, 0, frame_epipol2.cols, frame_epipol2.rows);
-                        frame_epipol1.copyTo(frame4( r1 ));
-                        frame_epipol2.copyTo(frame4( r2 ));                    
+                        Rect r1(0, 0, frame.cols, frame.rows);                // Создаем фрагменты для склеивания зображения
+                        Rect r2(frame2.cols, 0, frame2.cols, frame2.rows);
+                        frame.copyTo(frame4( r1 ));
+                        frame2.copyTo(frame4( r2 ));                    
                         imshow("frame_epipol_double", frame4);
                         
                     }   // END Draw epilines between two image  ---------------------------------------------//   END step 3
@@ -434,7 +439,7 @@ int main()
             imshow("real_time", frame3);
             
                 // Вывод предыдущего и текущего кадров вместе
-            /*Rect r1(0, 0, frame.cols, frame.rows);                
+            /*Rect r1(0, 0, frame.cols, frame.rows);
             Rect r2(frame2.cols, 0, frame2.cols, frame2.rows);
             frame.copyTo(frame4( r1 ));
             frame2.copyTo(frame4( r2 ));
@@ -467,20 +472,18 @@ int main()
                                         &good_points2, 
                                         &good_matches, 
                                         key_num,
-                                        20 );
+                                        30 );
                         drawMatches(frame, good_points1, frame2, good_points2, good_matches, frame4);
                         imshow("1-2 frame", frame4);
-                        
-                        
                         
                         for (unsigned int i = 0; i < good_points1.size(); i++) { // Unioning the key points in new variable
                             points2frame[0].push_back(good_points1[i].pt);
                             points2frame[1].push_back(good_points2[i].pt);
                         }
                         
-                        sfm::reconstruct(points2frame, Ps, points_3d, intrinsic, true);
+                        //sfm::reconstruct(points2frame, Ps, points_3d, intrinsic, true);   // Bad Reconstruct
                         
-                        /*if ((good_points1.size() >= 8) && (good_points2.size() >= 8)) { // Проверка на наличие точек, удовлетворяющих порогу
+                        if ((good_points1.size() >= 8) && (good_points2.size() >= 8)) { // Проверка на наличие точек, удовлетворяющих порогу
                             vector<Point2f> points1(t);
                             vector<Point2f> points2(t);
                             vector<Point2f> status(t);
@@ -494,16 +497,25 @@ int main()
                             fundamental_matrix = cv::findFundamentalMat(points1, points2, FM_RANSAC, 1.0, 0.99, noArray());
                             
                             if (!fundamental_matrix.empty()) {  // Проверка на пустотности фундаментальной матрицы
-                                fm::projectionsFromFundamental(fundamental_matrix, P1, P2);    // Расчет матриц проекции
-                                Ps.push_back(P1);
-                                Ps.push_back(P2);
-                                triangulatePoints(points2frame, Ps, points_3d);
+                                
+                                cv::computeCorrespondEpilines(points1, 1 , fundamental_matrix, lines[0]);
+                                cv::computeCorrespondEpilines(points2, 2 , fundamental_matrix, lines[1]);
+                                
+                                frame.copyTo( frame_epipol1 );
+                                frame2.copyTo( frame_epipol2 );
+                                drawlines(frame_epipol1, lines[0], points1);
+                                drawlines(frame_epipol2, lines[1], points2);
+                                
+                                Rect r1(0, 0, frame_epipol1.cols, frame_epipol1.rows);                // Создаем фрагменты для склеивания зображения
+                                Rect r2(frame_epipol2.cols, 0, frame_epipol2.cols, frame_epipol2.rows);
+                                frame_epipol1.copyTo(frame4( r1 ));
+                                frame_epipol2.copyTo(frame4( r2 ));
+                                imshow("1-2 frame", frame4);
                             }
-                        }*/
+                        }
                         
                         //projectionsFromFundamental(F, P, Pp);
                         
-                        //reconstruct(points2frame, Ps, points_3d, intrinsic, true);
                         // OpenCV data types
                         /*std::vector<Mat> pts2d;
                         points2frame
@@ -522,6 +534,14 @@ int main()
                 
                         // Triangulate and find 3D points using inliers
                         triangulatePoints(points2d, Ps, points3d);*/
+                    } else {
+                        // Вывод первого кадра и пустого кадра
+                        frame2 *= 0;
+                        Rect r1(0, 0, frame.cols, frame.rows);
+                        Rect r2(frame2.cols, 0, frame2.cols, frame2.rows);
+                        frame.copyTo(frame4( r1 ));
+                        frame2.copyTo(frame4( r2 ));
+                        imshow("1-2 frame", frame4);
                     }
                 }                
                 frame.copyTo( frame2 );

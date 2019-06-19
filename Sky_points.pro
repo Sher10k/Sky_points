@@ -27,7 +27,7 @@ else: unix:!android: target.path = /opt/$${TARGET}/bin
 #DISTFILES +=
 
 CONFIG      *= link_pkgconfig
-PKGCONFIG   *= opencv4
+PKGCONFIG   *= opencv
 
 #INCLUDEPATH += /usr/local/include/opencv4
 #LIBS += -L/usr/local/lib
