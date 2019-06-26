@@ -31,7 +31,7 @@
 //#include <opencv2/video/tracking.hpp>
 #include <opencv2/features2d.hpp>
 #include <opencv2/xfeatures2d.hpp>
-//#include <opencv2/xfeatures2d/nonfree.hpp>
+#include <opencv2/xfeatures2d/nonfree.hpp>
 #include <opencv2/calib3d.hpp>  // For FundamentalMat
 
 #include <opencv2/sfm.hpp>
@@ -105,6 +105,67 @@ unsigned long Match_find(vector<KeyPoint> kpf1, vector<KeyPoint> kpf2, Mat dpf1,
             temp ++;
         }
     }
+    return temp;
+}
+
+// SURF Find matches between points
+unsigned long Match_find_SURF(vector<KeyPoint> kpf1,
+                              vector<KeyPoint> kpf2,
+                              Mat dpf1,
+                              Mat dpf2,
+                              vector<KeyPoint> *gp1,
+                              vector<KeyPoint> *gp2,
+                              vector<DMatch> *gm,
+                              unsigned long kn)
+{
+    //Ptr<BFMatcher> bf = BFMatcher::create(NORM_HAMMING, true);
+    Ptr<DescriptorMatcher> matcher = DescriptorMatcher::create(DescriptorMatcher::BRUTEFORCE);
+    //BFMatcher matcher(NORM_HAMMING, false);    // NORM_L2, NORM_HAMMING
+    vector<DMatch> matches;
+    DMatch dist1, dist2;
+
+    //matcher.match(dpf1, dpf2, matches, noArray());   // Matches key points of the frame with key points of the frame2
+    matcher->match(dpf1, dpf2, matches, noArray());
+
+    // Sort match
+    unsigned long temp = 0;
+    kn = static_cast<unsigned long>(matches.size());
+    for (unsigned long i = 0; i < kn - 1; i++) { //key_num - 1
+        dist1 = matches[i];
+        for (unsigned long j = i + 1; j < kn; j++) {
+            dist2 = matches[j];
+            if (dist2.distance < dist1.distance) {
+                dist1 = matches[j];
+                temp = j;
+            }
+            if (j == kn - 1) {
+                matches[temp] = matches[i];
+                matches[i] = dist1;
+                break;
+            }
+        }
+    }
+    //-- Вычисление максимального и минимального расстояния среди всех дескрипторов в пространстве признаков
+    float max_dist = 0, min_dist = 100;
+    for(size_t i = 0; i < matches.size(); i++ ) {
+        float dist = matches[i].distance;
+        if( dist < min_dist ) min_dist = dist;
+        if( dist > max_dist ) max_dist = dist;
+    }
+    printf("-- Max dist : %f \n", static_cast<double>( max_dist ) );
+    printf("-- Min dist : %f \n", static_cast<double>( min_dist ) );
+    // Selection of key points on both frames satisfying the threshold
+    temp = 0;
+    for (size_t i = 0; i < matches.size(); i++) {
+        if (matches[i].distance <  3*min_dist) { // threshold
+            int new_i = static_cast<int>( gp1->size() );
+            gp1->push_back( kpf1[ static_cast<unsigned long>( matches[i].queryIdx ) ] );
+            gp2->push_back( kpf2[ static_cast<unsigned long>( matches[i].trainIdx ) ] );
+            gm->push_back( DMatch(new_i, new_i, 0) );
+            temp++;
+        }
+    }
+    printf("-- Temp : %d \n\n", static_cast<int>(temp) );
     return temp;
 }
 
@@ -187,15 +248,16 @@ int main()
     }*/ //                    ----------------------------------------------------------//
 
     
-    // VARIABLES
+    //-------------------------------VARIABLES------------------------------------------//
     frame_pause = frame_pause / 30 * 1000;  // Convertion from frames per second to msec
 
     // ORB keypoint
     unsigned long key_num = 5;  // Num keypoint
     Ptr<FeatureDetector> detector = ORB::create(static_cast<int>(key_num), 1.2f, 8, 31, 0, 4, ORB::HARRIS_SCORE, 31);   // HARRIS_SCORE, FAST_SCORE
     //Ptr<SURF> detectorSURF = cv::xfeatures2d::SURF::create(static_cast<double>(key_num), 4, 3, true, false);   // cv::xfeatures2d::
-    std::vector<KeyPoint> keypoints_frame, keypoints_frame2;
-    Mat descriptors_frame, descriptors_frame2;
+    Ptr<SURF> detectorSURF = cv::xfeatures2d::SURF::create(100);
+    std::vector<KeyPoint> keypoints_frame, keypoints_frame2, keypoints_frame_SURF, keypoints_frame2_SURF;
+    Mat descriptors_frame, descriptors_frame2, descriptors_frame_SURF, descriptors_frame2_SURF;
 
     // Brute-Force Matcher1
     /*-----------------*/
@@ -449,32 +511,38 @@ int main()
             if ( button_nf == 32 )             // If press "space"
             {
                 frame3.copyTo( frame );
-                detector->detectAndCompute(frame, noArray(), keypoints_frame, descriptors_frame);       // Detected key points at frame
+                //detector->detectAndCompute(frame, noArray(), keypoints_frame, descriptors_frame);       // Detected key points at frame
+                detectorSURF->detectAndCompute(frame, noArray(), keypoints_frame_SURF, descriptors_frame_SURF); // SURF detected frame
                 if ( !frame2.empty() ) 
                 {
-                    detector->detectAndCompute(frame2, noArray(), keypoints_frame2, descriptors_frame2);    // Detected key points at frame2
-                    
-                    RNG rng(12345);     // Drawing found key points 
-                    for (unsigned long i = 0; i < keypoints_frame.size(); i++) {
-                        Scalar color = Scalar( rng.uniform(0, 255), rng.uniform(0,255), rng.uniform(0,255) );
-                        circle(frame, keypoints_frame[i].pt, 3, color, 2, LINE_8, 0);
-                        circle(frame2, keypoints_frame2[i].pt, 3, color, 2, LINE_8, 0);
-                    }
-                    
-                    if ((keypoints_frame.size() != 0) && (keypoints_frame2.size() != 0)) {  // Matching key points
+                    //detector->detectAndCompute(frame2, noArray(), keypoints_frame2, descriptors_frame2);    // Detected key points at frame2
+                    detectorSURF->detectAndCompute(frame2, noArray(), keypoints_frame2_SURF, descriptors_frame2_SURF);  // SURF detected frame2
+
+                    if ((keypoints_frame_SURF.size() != 0) && (keypoints_frame2_SURF.size() != 0)) {  // Matching key points
                         vector<DMatch> good_matches;
                         vector<KeyPoint> good_points1, good_points2;
-                        t = Match_find( keypoints_frame,
-                                        keypoints_frame2,
-                                        descriptors_frame, 
-                                        descriptors_frame2, 
-                                        &good_points1, 
-                                        &good_points2, 
-                                        &good_matches, 
-                                        key_num,
-                                        30 );
-                        drawMatches(frame, good_points1, frame2, good_points2, good_matches, frame4);
-                        imshow("1-2 frame", frame4);
+                        t = Match_find_SURF(    keypoints_frame_SURF,
+                                                keypoints_frame2_SURF,
+                                                descriptors_frame_SURF,
+                                                descriptors_frame2_SURF,
+                                                &good_points1,
+                                                &good_points2,
+                                                &good_matches,
+                                                key_num);
+
+                        /*RNG rng(12345);     // Drawing found key points
+                        for (unsigned long i = 0; i < good_points1.size(); i++) {
+                            Scalar color = Scalar( rng.uniform(0, 255), rng.uniform(0,255), rng.uniform(0,255) );
+                            circle(frame, good_points1[i].pt, 2, color, 2, LINE_8, 0);
+                            circle(frame2, good_points2[i].pt, 2, color, 2, LINE_8, 0);
+                        }*/
+                        /*drawMatches(frame, good_points1, frame2, good_points2, good_matches, frame4);
+                        imshow("1-2 frame", frame4);*/
+                        /*Rect r1(0, 0, frame.cols, frame.rows);
+                        Rect r2(frame2.cols, 0, frame2.cols, frame2.rows);
+                        frame.copyTo(frame4( r1 ));
+                        frame2.copyTo(frame4( r2 ));
+                        imshow("1-2 frame", frame4);*/
                         
                         for (unsigned int i = 0; i < good_points1.size(); i++) { // Unioning the key points in new variable
                             points2frame[0].push_back(good_points1[i].pt);
@@ -498,18 +566,21 @@ int main()
                             
                             if (!fundamental_matrix.empty()) {  // Проверка на пустотности фундаментальной матрицы
                                 
-                                cv::computeCorrespondEpilines(points1, 1 , fundamental_matrix, lines[0]);
-                                cv::computeCorrespondEpilines(points2, 2 , fundamental_matrix, lines[1]);
+                                cv::computeCorrespondEpilines(points1, 1 , fundamental_matrix, lines[0]);   // Расчет эпиполярных линый для 1го кадра
+                                cv::computeCorrespondEpilines(points2, 2 , fundamental_matrix, lines[1]);   // Расчет эпиполярных линый для 2го кадра
                                 
                                 frame.copyTo( frame_epipol1 );
                                 frame2.copyTo( frame_epipol2 );
-                                drawlines(frame_epipol1, lines[0], points1);
-                                drawlines(frame_epipol2, lines[1], points2);
+                                //drawlines(frame_epipol1, lines[0], points1);  // Отрисовка эпиполярных линий
+                                //drawlines(frame_epipol2, lines[1], points2);
                                 
-                                Rect r1(0, 0, frame_epipol1.cols, frame_epipol1.rows);                // Создаем фрагменты для склеивания зображения
+                                /*Rect r1(0, 0, frame_epipol1.cols, frame_epipol1.rows);                // Создаем фрагменты для склеивания зображения
                                 Rect r2(frame_epipol2.cols, 0, frame_epipol2.cols, frame_epipol2.rows);
                                 frame_epipol1.copyTo(frame4( r1 ));
                                 frame_epipol2.copyTo(frame4( r2 ));
+                                imshow("1-2 frame", frame4);*/
+
+                                drawMatches(frame_epipol1, good_points1, frame_epipol2, good_points2, good_matches, frame4);
                                 imshow("1-2 frame", frame4);
                             }
                         }
