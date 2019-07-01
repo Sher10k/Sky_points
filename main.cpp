@@ -16,7 +16,7 @@
 
 #include <iostream>
 #include <string>
-#include <stdio.h>
+//#include <stdio.h>
 
 #include <opencv2/core.hpp>
 #include <opencv2/core/mat.hpp>
@@ -152,8 +152,8 @@ unsigned long Match_find_SURF(vector<KeyPoint> kpf1,
         if( dist < min_dist ) min_dist = dist;
         if( dist > max_dist ) max_dist = dist;
     }
-    printf("-- Max dist : %f \n", static_cast<double>( max_dist ) );
-    printf("-- Min dist : %f \n", static_cast<double>( min_dist ) );
+    cout << "-- Max dist : " << max_dist << endl;
+    cout << "-- Min dist : " << min_dist << endl;
     // Selection of key points on both frames satisfying the threshold
     temp = 0;
     for (size_t i = 0; i < matches.size(); i++) {
@@ -165,7 +165,7 @@ unsigned long Match_find_SURF(vector<KeyPoint> kpf1,
             temp++;
         }
     }
-    printf("-- Temp : %d \n\n", static_cast<int>(temp) );
+    cout << "-- Temp : " << temp << endl << endl;
     return temp;
 }
 
@@ -193,13 +193,18 @@ int main()
     else {  //  Info about frame
         cap.set(CAP_PROP_FRAME_WIDTH, FRAME_WIDTH); //320, 640, (640, 1280)
         cap.set(CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT);   //240, 480, (360, 720)
-        cap.set(CAP_PROP_POS_FRAMES, 0);
+        //cap.set(CAP_PROP_POS_FRAMES, 0);
+        //cap.set(CAP_PROP_FPS, 30);
+        //cap.set(CAP_PROP_AUTOFOCUS, 0);
         cap.read(frame);
 
-        cout  <<    "Width = " << cap.get(CAP_PROP_FRAME_WIDTH) << endl <<
-                    "Height = " << cap.get(CAP_PROP_FRAME_HEIGHT) << endl <<
-                    "nframes = " << cap.get(CAP_PROP_FRAME_COUNT) << endl <<
-                    "----------" <<endl;
+        cout    << "Width = " << cap.get(CAP_PROP_FRAME_WIDTH) << endl
+                << "Height = " << cap.get(CAP_PROP_FRAME_HEIGHT) << endl
+                << "FPS = " << cap.get(CAP_PROP_FPS) << endl
+                //<< "nframes = " << cap.get(CAP_PROP_FRAME_COUNT) << endl
+                //<< "Auto focus" << cap.get(CAP_PROP_AUTOFOCUS) << endl
+                //<< "cap : " << cap.get(CAP_PROP_FPS) << endl
+                << "----------" <<endl;
 
             // Calculation FPS
         /*double fps;
@@ -252,7 +257,7 @@ int main()
     frame_pause = frame_pause / 30 * 1000;  // Convertion from frames per second to msec
 
     // ORB keypoint
-    unsigned long key_num = 5;  // Num keypoint
+    unsigned long key_num = 10;  // Num keypoint
     Ptr<FeatureDetector> detector = ORB::create(static_cast<int>(key_num), 1.2f, 8, 31, 0, 4, ORB::HARRIS_SCORE, 31);   // HARRIS_SCORE, FAST_SCORE
     //Ptr<SURF> detectorSURF = cv::xfeatures2d::SURF::create(static_cast<double>(key_num), 4, 3, true, false);   // cv::xfeatures2d::
     Ptr<SURF> detectorSURF = cv::xfeatures2d::SURF::create(100);
@@ -298,13 +303,20 @@ int main()
     std::vector<cv::Point3f> lines[2];
     Mat frame_epipol1, frame_epipol2;
     
-    // Array of array for frames key points
-    vector<vector<Point2d>> points2frame(2);
+    //  Array of array for frames key points
+    //vector <vector <Point2d>> points2frame(2);
     //vector<vector<KeyPoint>> points2frame(2);
-    //vector<vector<Mat>> points2frame(2);
+    vector <vector <Mat>> points2frame(2);
+    
     Matx34d P1, P2;
-    //vector<Matx34d> Ps;
-    vector<Mat> Ps, points_3d;
+    Mat Pt1 = cv::Mat::eye(3, 4, CV_64F);
+    Mat Pt2 = cv::Mat::eye(3, 4, CV_64F);
+    
+    vector<Matx34d> Ps;
+    //Mat Ps;
+    
+    vector<Mat> points_3d;
+    Matx34d points_4d;
     
     
     
@@ -519,8 +531,8 @@ int main()
                     detectorSURF->detectAndCompute(frame2, noArray(), keypoints_frame2_SURF, descriptors_frame2_SURF);  // SURF detected frame2
 
                     if ((keypoints_frame_SURF.size() != 0) && (keypoints_frame2_SURF.size() != 0)) {  // Matching key points
-                        vector<DMatch> good_matches;
-                        vector<KeyPoint> good_points1, good_points2;
+                        vector <DMatch> good_matches;
+                        vector <KeyPoint> good_points1, good_points2;
                         t = Match_find_SURF(    keypoints_frame_SURF,
                                                 keypoints_frame2_SURF,
                                                 descriptors_frame_SURF,
@@ -544,12 +556,17 @@ int main()
                         frame2.copyTo(frame4( r2 ));
                         imshow("1-2 frame", frame4);*/
                         
-                        for (unsigned int i = 0; i < good_points1.size(); i++) { // Unioning the key points in new variable
-                            points2frame[0].push_back(good_points1[i].pt);
-                            points2frame[1].push_back(good_points2[i].pt);
-                        }
+                        vector <Point2f> point_good1, point_good2;  //Point2f
+                        cv::KeyPoint::convert(good_points1, point_good1);   // Convert from KeyPoint to Point2f
+                        cv::KeyPoint::convert(good_points2, point_good2);
                         
-                        //sfm::reconstruct(points2frame, Ps, points_3d, intrinsic, true);   // Bad Reconstruct
+                        /*for (unsigned int i = 0; i < point_good1.size(); i++) {  // Unioning the key points in new variable
+                            points2frame[0][i].push_back(point_good1[i]);
+                            points2frame[1][i].push_back(point_good2[i]);
+                        }*/
+                        
+                        //cv::Mat pnts3D(4, static_cast<int>(point_good1.size()), CV_64F);
+                        //sfm::reconstruct(points2frame, Ps, pnts3D, intrinsic, true);   // Bad Reconstruct
                         
                         if ((good_points1.size() >= 8) && (good_points2.size() >= 8)) { // Проверка на наличие точек, удовлетворяющих порогу
                             vector<Point2f> points1(t);
@@ -565,6 +582,36 @@ int main()
                             fundamental_matrix = cv::findFundamentalMat(points1, points2, FM_RANSAC, 1.0, 0.99, noArray());
                             
                             if (!fundamental_matrix.empty()) {  // Проверка на пустотности фундаментальной матрицы
+                                
+                                //normalizedEightPointSolver(pts2d[0], pts2d[1], F);
+                                //projectionsFromFundamental(fundamental_matrix, Pt1, Pt2);
+                                projectionsFromFundamental(fundamental_matrix, P1, P2);
+                                /*Ps.create(2, 1, depth);
+                                Mat(Pt1).copyTo(Ps); //getMatRef(0)
+                                Mat(Pt2).copyTo(Ps);*/
+                                
+                                Ps.push_back(Pt1);
+                                Ps.push_back(Pt2);
+                                cv::Mat pnts3D(4, static_cast<int>(point_good1.size()), CV_64F);
+                        
+                                // Triangulate and find 3D points using inliers
+                                //cv::sfm::triangulatePoints(points2frame, Ps, pnts3D);
+                                
+                                cv::triangulatePoints(P1, P2, point_good1, point_good2, pnts3D);
+                                cout    << "pnts3D.cols = " << pnts3D.cols
+                                        << endl;
+                                for (int i = 0; i < pnts3D.cols; i++){
+                                    for (int j = 0; j < pnts3D.rows; j++){
+                                        cout << " " << pnts3D.at<double>(i, j) << " ";
+                                    }
+                                    cout << endl;
+                                }
+                                
+                                /*FileStorage poins3D;      // Вывод в файл 3д точек
+                                poins3D.open("/home/roman/Sky_points/poins3D_XYZ.txt", FileStorage::WRITE);
+                                poins3D << "pnts3D" << pnts3D;
+                                poins3D.release();*/
+                                
                                 
                                 cv::computeCorrespondEpilines(points1, 1 , fundamental_matrix, lines[0]);   // Расчет эпиполярных линый для 1го кадра
                                 cv::computeCorrespondEpilines(points2, 2 , fundamental_matrix, lines[1]);   // Расчет эпиполярных линый для 2го кадра
@@ -584,27 +631,6 @@ int main()
                                 imshow("1-2 frame", frame4);
                             }
                         }
-                        
-                        //projectionsFromFundamental(F, P, Pp);
-                        
-                        // OpenCV data types
-                        /*std::vector<Mat> pts2d;
-                        points2frame
-                        points2d.getMatVector(pts2d);
-                        const int depth = pts2d[0].depth();
-                        
-                        // Get Projection matrices
-                        Matx33d F;
-                        Matx34d P, Pp;
-                
-                        normalizedEightPointSolver(pts2d[0], pts2d[1], F);
-                        projectionsFromFundamental(F, P, Pp);
-                        Ps.create(2, 1, depth);
-                        Mat(P).copyTo(Ps.getMatRef(0));
-                        Mat(Pp).copyTo(Ps.getMatRef(1));
-                
-                        // Triangulate and find 3D points using inliers
-                        triangulatePoints(points2d, Ps, points3d);*/
                     } else {
                         // Вывод первого кадра и пустого кадра
                         frame2 *= 0;
@@ -679,7 +705,7 @@ int main()
 
                         image_points.push_back(calib_frame_corners);
                         object_points.push_back(obj);
-                        printf("Snap stored!\n");
+                        cout << "Snap stored!" << endl;
 
                         successes++;
                     }
