@@ -303,21 +303,12 @@ int main()
     std::vector<cv::Point3f> lines[2];
     Mat frame_epipol1, frame_epipol2;
     
-    //  Array of array for frames key points
-    //vector <vector <Point2d>> points2frame(2);
-    //vector<vector<KeyPoint>> points2frame(2);
-    vector <vector <Mat>> points2frame(2);
-    
-    Matx34d P1, P2;
-    Mat Pt1 = cv::Mat::eye(3, 4, CV_64F);
-    Mat Pt2 = cv::Mat::eye(3, 4, CV_64F);
-    
-    vector<Matx34d> Ps;
-    //Mat Ps;
-    
-    vector<Mat> points_3d;
-    Matx34d points_4d;
-    
+    //  Array of array for frames key points  
+    Mat Pt1 = cv::Mat::eye(3, 4, CV_64F);   // Projection matrices for each camera
+    Mat Pt2 = cv::Mat::eye(3, 4, CV_64F);  
+    vector <Mat> Ps(2); // Matx34d          // Vector of projection matrices for each camera
+    Ps[0] = cv::Mat(3, 4, CV_64F);
+    Ps[1] = cv::Mat(3, 4, CV_64F);
     
     
     // SFM camera
@@ -540,7 +531,7 @@ int main()
                                                 &good_points1,
                                                 &good_points2,
                                                 &good_matches,
-                                                key_num);
+                                                key_num);               // t = number of good points
 
                         /*RNG rng(12345);     // Drawing found key points
                         for (unsigned long i = 0; i < good_points1.size(); i++) {
@@ -556,48 +547,41 @@ int main()
                         frame2.copyTo(frame4( r2 ));
                         imshow("1-2 frame", frame4);*/
                         
-                        vector <Point2f> point_good1, point_good2;  //Point2f
-                        cv::KeyPoint::convert(good_points1, point_good1);   // Convert from KeyPoint to Point2f
-                        cv::KeyPoint::convert(good_points2, point_good2);
-                        
-                        /*for (unsigned int i = 0; i < point_good1.size(); i++) {  // Unioning the key points in new variable
-                            points2frame[0][i].push_back(point_good1[i]);
-                            points2frame[1][i].push_back(point_good2[i]);
-                        }*/
-                        
-                        //cv::Mat pnts3D(4, static_cast<int>(point_good1.size()), CV_64F);
-                        //sfm::reconstruct(points2frame, Ps, pnts3D, intrinsic, true);   // Bad Reconstruct
-                        
                         if ((good_points1.size() >= 8) && (good_points2.size() >= 8)) { // Проверка на наличие точек, удовлетворяющих порогу
-                            vector<Point2f> points1(t);
-                            vector<Point2f> points2(t);
-                            vector<Point2f> status(t);
                             
-                            for (unsigned long i = 0; i < t; i++) {
-                                points1[i].x = good_points1[i].pt.x;
-                                points1[i].y = good_points1[i].pt.y;
-                                points2[i].x = good_points2[i].pt.x;
-                                points2[i].y = good_points2[i].pt.y;
+                            vector <Point2f> points1(t), points2(t), status(t);     // Point2f
+                            cv::KeyPoint::convert(good_points1, points1);           // Convert from KeyPoint to Point2f
+                            cv::KeyPoint::convert(good_points2, points2);
+                            cv::Mat pnts3D(4, static_cast<int>(t), CV_64F);         // 3D points.  static_cast<int>(good_points1.size())
+                            
+                            vector <cv::Mat> points2frame(2);                       // Vector of key point arrays for each frame
+                            points2frame[0] = cv::Mat(2, static_cast<int>(points1.size()), CV_64F);
+                            points2frame[1] = cv::Mat(2, static_cast<int>(points2.size()), CV_64F);
+                            
+                            for (int i = 0; i < static_cast<int>(t); i++) {         // Unioning the key points in new variable
+                                points2frame[0].at<float>(0, i) = points1[static_cast<unsigned long>(i)].x;
+                                points2frame[0].at<float>(1, i) = points1[static_cast<unsigned long>(i)].y;
+                                points2frame[1].at<float>(0, i) = points2[static_cast<unsigned long>(i)].x;
+                                points2frame[1].at<float>(1, i) = points2[static_cast<unsigned long>(i)].y;
+                                /*cout    << "points2frame [0](0, " << i << ") = " << points2frame[0].at<float>(0, i) << endl
+                                        << "points2frame [0](1, " << i << ") = " << points2frame[0].at<float>(1, i) << endl
+                                        << "points2frame [1](0, " << i << ") = " << points2frame[1].at<float>(0, i) << endl
+                                        << "points2frame [1](1, " << i << ") = " << points2frame[1].at<float>(1, i) << endl
+                                        << endl;*/
                             }
+                            
+                            sfm::reconstruct(points2frame, Ps, pnts3D, intrinsic, true);   
+                            
                             fundamental_matrix = cv::findFundamentalMat(points1, points2, FM_RANSAC, 1.0, 0.99, noArray());
                             
                             if (!fundamental_matrix.empty()) {  // Проверка на пустотности фундаментальной матрицы
                                 
-                                //normalizedEightPointSolver(pts2d[0], pts2d[1], F);
-                                //projectionsFromFundamental(fundamental_matrix, Pt1, Pt2);
-                                projectionsFromFundamental(fundamental_matrix, P1, P2);
-                                /*Ps.create(2, 1, depth);
-                                Mat(Pt1).copyTo(Ps); //getMatRef(0)
-                                Mat(Pt2).copyTo(Ps);*/
+                                /*projectionsFromFundamental(fundamental_matrix, Pt1, Pt2);
+                                Ps[0] = Pt1;
+                                Ps[1] = Pt2;
                                 
-                                Ps.push_back(Pt1);
-                                Ps.push_back(Pt2);
-                                cv::Mat pnts3D(4, static_cast<int>(point_good1.size()), CV_64F);
-                        
-                                // Triangulate and find 3D points using inliers
-                                //cv::sfm::triangulatePoints(points2frame, Ps, pnts3D);
-                                
-                                cv::triangulatePoints(P1, P2, point_good1, point_good2, pnts3D);
+                                //cv::sfm::triangulatePoints(points2frame, Ps, pnts3D);                 // Triangulate and find 3D points using inliers, with SFM
+                                //cv::triangulatePoints(Pt1, Pt2, point_good1, point_good2, pnts3D);    // Triangulation without SFM
                                 cout    << "pnts3D.cols = " << pnts3D.cols
                                         << endl;
                                 for (int i = 0; i < pnts3D.cols; i++){
@@ -605,13 +589,11 @@ int main()
                                         cout << " " << pnts3D.at<double>(i, j) << " ";
                                     }
                                     cout << endl;
-                                }
-                                
-                                /*FileStorage poins3D;      // Вывод в файл 3д точек
+                                }*/
+                                FileStorage poins3D;      // Вывод в файл 3д точек
                                 poins3D.open("/home/roman/Sky_points/poins3D_XYZ.txt", FileStorage::WRITE);
                                 poins3D << "pnts3D" << pnts3D;
-                                poins3D.release();*/
-                                
+                                poins3D.release();
                                 
                                 cv::computeCorrespondEpilines(points1, 1 , fundamental_matrix, lines[0]);   // Расчет эпиполярных линый для 1го кадра
                                 cv::computeCorrespondEpilines(points2, 2 , fundamental_matrix, lines[1]);   // Расчет эпиполярных линый для 2го кадра
