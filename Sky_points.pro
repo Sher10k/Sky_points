@@ -1,6 +1,6 @@
 QT -= gui
 
-CONFIG += c++11 console
+CONFIG += c++14 console
 CONFIG -= app_bundle
 
 # The following define makes your compiler emit warnings if you use
@@ -28,6 +28,40 @@ else: unix:!android: target.path = /opt/$${TARGET}/bin
 
 CONFIG      *= link_pkgconfig
 PKGCONFIG   *= opencv4
+PKGCONFIG   *= metslib
+
+PKGCONFIG   += pcl_2d-1.9
+PKGCONFIG   += pcl_common-1.9
+PKGCONFIG   += pcl_features-1.9
+PKGCONFIG   += pcl_filters-1.9
+PKGCONFIG   += pcl_geometry-1.9
+PKGCONFIG   += pcl_io-1.9
+PKGCONFIG   += pcl_kdtree-1.9
+PKGCONFIG   += pcl_keypoints-1.9
+PKGCONFIG   += pcl_ml-1.9
+PKGCONFIG   += pcl_octree-1.9
+PKGCONFIG   += pcl_outofcore-1.9
+PKGCONFIG   += pcl_people-1.9
+PKGCONFIG   += pcl_recognition-1.9
+PKGCONFIG   += pcl_registration-1.9
+PKGCONFIG   += pcl_sample_consensus-1.9
+PKGCONFIG   += pcl_search-1.9
+PKGCONFIG   += pcl_segmentation-1.9
+PKGCONFIG   += pcl_stereo-1.9
+PKGCONFIG   += pcl_surface-1.9
+PKGCONFIG   += pcl_tracking-1.9
+PKGCONFIG   += pcl_visualization-1.9
+
+#PKGCONFIG   += eigen3
+#LIBS        += -L/usr/local/lib
+#INCLUDEPATH += /usr/local/include/pcl-1.9/pcl
+INCLUDEPATH += /usr/local/include/vtk-8.0
+
+#LIBS += -L/usr/local/lib -Wl,-rpath=/usr/local/lib
+LIBS += -lboost_system \
+        #-lvtksys-8.0 \
+        -lvtkCommonCore-8.0
+
 
 #INCLUDEPATH += /usr/local/include/opencv4
 #LIBS += -L/usr/local/lib

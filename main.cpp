@@ -40,13 +40,44 @@
 //#include <opencv2/sfm/robust.hpp>
 #include <opencv2/sfm/triangulation.hpp>
 
+#include <pcl/visualization/pcl_visualizer.h>
+#include <pcl/visualization/cloud_viewer.h>
+#include <pcl/io/io.h>
+#include <pcl/io/pcd_io.h>
+
 using namespace std;
 using namespace cv;
 using namespace cv::sfm;
 using namespace cv::xfeatures2d;
+using namespace pcl;
 
 #define FRAME_WIDTH 640
 #define FRAME_HEIGHT 480
+
+int static user_data;
+
+/*void viewerOneOff (pcl::visualization::PCLVisualizer& viewer)
+{
+    viewer.setBackgroundColor (1.0, 0.5, 1.0);
+    pcl::PointXYZ o;
+    o.x = 1.0;
+    o.y = 0;
+    o.z = 0;
+    viewer.addSphere (o, 0.25, "sphere", 0);
+    std::cout << "i only run once" << std::endl;
+}*/
+ 
+void viewerPsycho (pcl::visualization::PCLVisualizer& viewer)
+{
+    static unsigned count = 0;
+    std::stringstream ss;
+    ss << "Once per viewer loop: " << count++;
+    viewer.removeShape ("text", 0);
+    viewer.addText (ss.str(), 200, 300, "text", 0);
+    
+    //FIXME: possible race condition here:
+    user_data++;
+}
 
 void drawlines(Mat& in_img, std::vector<cv::Point3f>& line, vector<Point2f>& pts) {         // Draw epipolar lines
     
@@ -67,7 +98,15 @@ void drawlines(Mat& in_img, std::vector<cv::Point3f>& line, vector<Point2f>& pts
 }
 
 // Find matches between points 
-unsigned long Match_find(vector<KeyPoint> kpf1, vector<KeyPoint> kpf2, Mat dpf1, Mat dpf2, vector<KeyPoint> *gp1, vector<KeyPoint> *gp2, vector<DMatch> *gm, unsigned long kn, int  threshold) {
+unsigned long Match_find(vector<KeyPoint> kpf1, 
+                         vector<KeyPoint> kpf2, 
+                         Mat dpf1, 
+                         Mat dpf2, 
+                         vector<KeyPoint> *gp1, 
+                         vector<KeyPoint> *gp2, 
+                         vector<DMatch> *gm, 
+                         unsigned long kn, 
+                         int  threshold) {
    
     Ptr<BFMatcher> bf = BFMatcher::create(NORM_HAMMING, true);
     BFMatcher matcher(NORM_HAMMING, false);    // NORM_L2, NORM_HAMMING
@@ -171,10 +210,6 @@ unsigned long Match_find_SURF(vector<KeyPoint> kpf1,
 
 int main()
 {
-    /*printf("OPENCV_OPENCL_DEVICE='%s'\n", getenv("OPENCV_OPENCL_DEVICE"));
-    cv::ocl::setUseOpenCL(true);
-    ocl::Context context = ocl::Context::getDefault();*/
-
     Mat frame, frame2, frame3, frameImg, frameImg2, frame_grey, flow, img2Original;
     double frame_pause = 0;
 //    double frame_MSEC, frame_MSEC2; 
@@ -570,30 +605,77 @@ int main()
                                         << endl;*/
                             }
                             
-                            sfm::reconstruct(points2frame, Ps, pnts3D, intrinsic, true);   
+                            // FindFundamentalMat     -------------------------------------------------------------//      step 4
+                            sfm::reconstruct(points2frame, Ps, pnts3D, intrinsic, true);
+                            cout    << "pnts3D.cols = " << pnts3D.cols
+                                    << endl;
+                            for (int i = 0; i < pnts3D.cols; i++){
+                                for (int j = 0; j < pnts3D.rows; j++){
+                                    cout << " " << pnts3D.at<double>(i, j) << " ";
+                                }
+                                cout << endl;
+                            }
+                                // 3D points cloud
+                            pcl::PointCloud <pcl::PointXYZ> cloud;
+                            cloud.height = 1;
+                            cloud.width = static_cast<unsigned int>( pnts3D.cols );
+                            cloud.is_dense = false;
+                            cloud.points.resize( cloud.width * cloud.height );
                             
-                            fundamental_matrix = cv::findFundamentalMat(points1, points2, FM_RANSAC, 1.0, 0.99, noArray());
+                            for (size_t i = 0; i < cloud.points.size (); ++i)
+                            {
+                                cloud.points[i].x = pnts3D.at<float>(0, static_cast<int>(i));
+                                cloud.points[i].y = pnts3D.at<float>(1, static_cast<int>(i));
+                                cloud.points[i].z = pnts3D.at<float>(2, static_cast<int>(i));
+                                //cloud.points[i].r = rgb_cenal[2].at(i);
+                                //cloud.points[i].g = rgb_cenal[1].at(i);
+                                //cloud.points[i].b = rgb_cenal[0].at(i);
+                            }
+                                // Save 3D points in file
+                            pcl::io::savePCDFileASCII ("Reconstruct_cloud.pcd", cloud);
+                                // Load 3D points (cloud points)
+                            pcl::PointCloud<pcl::PointXYZ>::Ptr cloud2 (new pcl::PointCloud<pcl::PointXYZ>);
+                            pcl::io::loadPCDFile("Reconstruct_cloud.pcd", *cloud2);
+                                // View cloud points
+                            pcl::visualization::CloudViewer viewer("Cloud Viewer");
+                            viewer.showCloud(cloud2, "cloud");
+                            cv::waitKey();
                             
+                            //This will only get called once
+                            //viewer.runOnVisualizationThreadOnce (viewerOneOff);
+                            
+                            //This will get called once per visualization iteration
+                            /*viewer.runOnVisualizationThread (viewerPsycho);
+                            while (!viewer.wasStopped ())
+                            {
+                                //you can also do cool processing here
+                                //FIXME: Note that this is running in a separate thread from viewerPsycho
+                                //and you should guard against race conditions yourself...
+                                user_data++;
+                            }*/
+                            // END FindFundamentalMat     ---------------------------------------------------------//    END step 4
+                            
+                            /*fundamental_matrix = cv::findFundamentalMat(points1, points2, FM_RANSAC, 1.0, 0.99, noArray());
                             if (!fundamental_matrix.empty()) {  // Проверка на пустотности фундаментальной матрицы
                                 
-                                /*projectionsFromFundamental(fundamental_matrix, Pt1, Pt2);
-                                Ps[0] = Pt1;
-                                Ps[1] = Pt2;
+//                                projectionsFromFundamental(fundamental_matrix, Pt1, Pt2);
+//                                Ps[0] = Pt1;
+//                                Ps[1] = Pt2;
                                 
                                 //cv::sfm::triangulatePoints(points2frame, Ps, pnts3D);                 // Triangulate and find 3D points using inliers, with SFM
                                 //cv::triangulatePoints(Pt1, Pt2, point_good1, point_good2, pnts3D);    // Triangulation without SFM
-                                cout    << "pnts3D.cols = " << pnts3D.cols
-                                        << endl;
-                                for (int i = 0; i < pnts3D.cols; i++){
-                                    for (int j = 0; j < pnts3D.rows; j++){
-                                        cout << " " << pnts3D.at<double>(i, j) << " ";
-                                    }
-                                    cout << endl;
-                                }*/
-                                FileStorage poins3D;      // Вывод в файл 3д точек
-                                poins3D.open("/home/roman/Sky_points/poins3D_XYZ.txt", FileStorage::WRITE);
-                                poins3D << "pnts3D" << pnts3D;
-                                poins3D.release();
+//                                cout    << "pnts3D.cols = " << pnts3D.cols
+//                                        << endl;
+//                                for (int i = 0; i < pnts3D.cols; i++){
+//                                    for (int j = 0; j < pnts3D.rows; j++){
+//                                        cout << " " << pnts3D.at<double>(i, j) << " ";
+//                                    }
+//                                    cout << endl;
+//                                }
+//                                FileStorage poins3D;      // Вывод в файл 3д точек
+//                                poins3D.open("/home/roman/Sky_points/poins3D_XYZ.txt", FileStorage::WRITE);
+//                                poins3D << "pnts3D" << pnts3D;
+//                                poins3D.release();
                                 
                                 cv::computeCorrespondEpilines(points1, 1 , fundamental_matrix, lines[0]);   // Расчет эпиполярных линый для 1го кадра
                                 cv::computeCorrespondEpilines(points2, 2 , fundamental_matrix, lines[1]);   // Расчет эпиполярных линый для 2го кадра
@@ -603,15 +685,18 @@ int main()
                                 //drawlines(frame_epipol1, lines[0], points1);  // Отрисовка эпиполярных линий
                                 //drawlines(frame_epipol2, lines[1], points2);
                                 
-                                /*Rect r1(0, 0, frame_epipol1.cols, frame_epipol1.rows);                // Создаем фрагменты для склеивания зображения
-                                Rect r2(frame_epipol2.cols, 0, frame_epipol2.cols, frame_epipol2.rows);
-                                frame_epipol1.copyTo(frame4( r1 ));
-                                frame_epipol2.copyTo(frame4( r2 ));
-                                imshow("1-2 frame", frame4);*/
+//                                Rect r1(0, 0, frame_epipol1.cols, frame_epipol1.rows);                // Создаем фрагменты для склеивания зображения
+//                                Rect r2(frame_epipol2.cols, 0, frame_epipol2.cols, frame_epipol2.rows);
+//                                frame_epipol1.copyTo(frame4( r1 ));
+//                                frame_epipol2.copyTo(frame4( r2 ));
+//                                imshow("1-2 frame", frame4);
 
                                 drawMatches(frame_epipol1, good_points1, frame_epipol2, good_points2, good_matches, frame4);
                                 imshow("1-2 frame", frame4);
-                            }
+                            }*/
+                            
+                            drawMatches(frame, good_points1, frame2, good_points2, good_matches, frame4);
+                            imshow("1-2 frame", frame4);
                         }
                     } else {
                         // Вывод первого кадра и пустого кадра
@@ -780,6 +865,7 @@ int main()
             if (mode_cam == true) {     // Закрываем окна при смене режима
                 destroyWindow("real_time");
                 destroyWindow("1-2 frame");
+                //destroyWindow("Cloud Viewer");
             }
         } 
         // END Обработка нажатой кнопки  ----------------------------------------------------//
