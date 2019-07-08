@@ -59,8 +59,14 @@ INCLUDEPATH += /usr/local/include/vtk-8.0
 
 #LIBS += -L/usr/local/lib -Wl,-rpath=/usr/local/lib
 LIBS += -lboost_system \
-        #-lvtksys-8.0 \
-        -lvtkCommonCore-8.0
+        -lvtkCommonCore-8.0 \
+        -lvtkRenderingCore-8.0 \
+        -lvtkCommonDataModel-8.0  \
+        -lvtkCommonMath-8.0
+        #-lpthread \
+        #-lvtksys-8.0
+        #-lX11 \
+        #-ldl
 
 
 #INCLUDEPATH += /usr/local/include/opencv4

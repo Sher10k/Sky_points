@@ -17,6 +17,7 @@
 #include <iostream>
 #include <string>
 //#include <stdio.h>
+#include <thread>
 
 #include <opencv2/core.hpp>
 #include <opencv2/core/mat.hpp>
@@ -44,6 +45,11 @@
 #include <pcl/visualization/cloud_viewer.h>
 #include <pcl/io/io.h>
 #include <pcl/io/pcd_io.h>
+#include <pcl/console/parse.h>
+#include <pcl/features/normal_3d.h>
+#include <pcl/common/common_headers.h>
+
+#include <boost/thread/thread.hpp>
 
 using namespace std;
 using namespace cv;
@@ -53,31 +59,6 @@ using namespace pcl;
 
 #define FRAME_WIDTH 640
 #define FRAME_HEIGHT 480
-
-int static user_data;
-
-/*void viewerOneOff (pcl::visualization::PCLVisualizer& viewer)
-{
-    viewer.setBackgroundColor (1.0, 0.5, 1.0);
-    pcl::PointXYZ o;
-    o.x = 1.0;
-    o.y = 0;
-    o.z = 0;
-    viewer.addSphere (o, 0.25, "sphere", 0);
-    std::cout << "i only run once" << std::endl;
-}*/
- 
-void viewerPsycho (pcl::visualization::PCLVisualizer& viewer)
-{
-    static unsigned count = 0;
-    std::stringstream ss;
-    ss << "Once per viewer loop: " << count++;
-    viewer.removeShape ("text", 0);
-    viewer.addText (ss.str(), 200, 300, "text", 0);
-    
-    //FIXME: possible race condition here:
-    user_data++;
-}
 
 void drawlines(Mat& in_img, std::vector<cv::Point3f>& line, vector<Point2f>& pts) {         // Draw epipolar lines
     
@@ -218,7 +199,7 @@ int main()
 
         //  Initialize VIDEOCAPTURE
     VideoCapture cap;
-    int deviceID = 1;           //  camera 1
+    int deviceID = 0;           //  camera 1
     int apiID = cv::CAP_ANY;    //  0 = autodetect default API
     cap.open(deviceID + apiID); //  Open camera
     if(!cap.isOpened()) {   // Check if we succeeded
@@ -359,8 +340,15 @@ int main()
                                                     distCoeffs(0, 3)};
     
     
+    pcl::PointCloud <pcl::PointXYZ> cloud;
+    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud2 (new pcl::PointCloud<pcl::PointXYZ>);
+    
+    boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer (new pcl::visualization::PCLVisualizer ("3D Viewer"));
+    viewer->setBackgroundColor(0, 0, 0);
+    viewer->addCoordinateSystem(50.0);
+    
     int c;
-    while(1) {                      // Основной режим работы камеры, потоковый режим
+    while(!viewer->wasStopped ()) {                      // Основной режим работы камеры, потоковый режим
         if ( (f == 1) && (mode_cam == true) ) {   
             //  Wait for a new frame from camera and store it into 'frameImg'
             if (!cap.read(frameImg)) { // check if we succeeded
@@ -616,7 +604,7 @@ int main()
                                 cout << endl;
                             }
                                 // 3D points cloud
-                            pcl::PointCloud <pcl::PointXYZ> cloud;
+                            //pcl::PointCloud <pcl::PointXYZ> cloud;
                             cloud.height = 1;
                             cloud.width = static_cast<unsigned int>( pnts3D.cols );
                             cloud.is_dense = false;
@@ -634,25 +622,14 @@ int main()
                                 // Save 3D points in file
                             pcl::io::savePCDFileASCII ("Reconstruct_cloud.pcd", cloud);
                                 // Load 3D points (cloud points)
-                            pcl::PointCloud<pcl::PointXYZ>::Ptr cloud2 (new pcl::PointCloud<pcl::PointXYZ>);
+                            //pcl::PointCloud<pcl::PointXYZ>::Ptr cloud2 (new pcl::PointCloud<pcl::PointXYZ>);
                             pcl::io::loadPCDFile("Reconstruct_cloud.pcd", *cloud2);
                                 // View cloud points
-                            pcl::visualization::CloudViewer viewer("Cloud Viewer");
-                            viewer.showCloud(cloud2, "cloud");
-                            cv::waitKey();
+                            /*pcl::visualization::CloudViewer viewer("Cloud Viewer");
+                            viewer.showCloud(cloud2, "cloud");*/
                             
-                            //This will only get called once
-                            //viewer.runOnVisualizationThreadOnce (viewerOneOff);
+                                
                             
-                            //This will get called once per visualization iteration
-                            /*viewer.runOnVisualizationThread (viewerPsycho);
-                            while (!viewer.wasStopped ())
-                            {
-                                //you can also do cool processing here
-                                //FIXME: Note that this is running in a separate thread from viewerPsycho
-                                //and you should guard against race conditions yourself...
-                                user_data++;
-                            }*/
                             // END FindFundamentalMat     ---------------------------------------------------------//    END step 4
                             
                             /*fundamental_matrix = cv::findFundamentalMat(points1, points2, FM_RANSAC, 1.0, 0.99, noArray());
@@ -707,7 +684,7 @@ int main()
                         frame2.copyTo(frame4( r2 ));
                         imshow("1-2 frame", frame4);
                     }
-                }                
+                }
                 frame.copyTo( frame2 );
                 frame *= 0;
                 
@@ -721,6 +698,14 @@ int main()
                     namedWindow("1-2 frame", WINDOW_AUTOSIZE);
                     destroyWindow("1-2 frame");
                 }
+            }
+            if (cloud.size() != 0) {
+                // Clear the view
+                viewer->removeAllShapes();
+                viewer->removeAllPointClouds();
+                viewer->addPointCloud<pcl::PointXYZ>(cloud2, "sample cloud", 0);
+                viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1, "sample cloud");
+                viewer->spinOnce (20);
             }
         }                           // Калибровка камеры  press "с" or "C"----------------------//      step 0
         else if ( f == 2 ) {
@@ -865,7 +850,6 @@ int main()
             if (mode_cam == true) {     // Закрываем окна при смене режима
                 destroyWindow("real_time");
                 destroyWindow("1-2 frame");
-                //destroyWindow("Cloud Viewer");
             }
         } 
         // END Обработка нажатой кнопки  ----------------------------------------------------//
