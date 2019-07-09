@@ -41,7 +41,7 @@
 //#include <opencv2/sfm/robust.hpp>
 #include <opencv2/sfm/triangulation.hpp>
 
-#include <pcl/visualization/pcl_visualizer.h>
+/*#include <pcl/visualization/pcl_visualizer.h>
 #include <pcl/visualization/cloud_viewer.h>
 #include <pcl/io/io.h>
 #include <pcl/io/pcd_io.h>
@@ -49,13 +49,13 @@
 #include <pcl/features/normal_3d.h>
 #include <pcl/common/common_headers.h>
 
-#include <boost/thread/thread.hpp>
+#include <boost/thread/thread.hpp>*/
 
 using namespace std;
 using namespace cv;
 using namespace cv::sfm;
 using namespace cv::xfeatures2d;
-using namespace pcl;
+//using namespace pcl;
 
 #define FRAME_WIDTH 640
 #define FRAME_HEIGHT 480
@@ -138,9 +138,7 @@ unsigned long Match_find_SURF(vector<KeyPoint> kpf1,
                               vector<DMatch> *gm,
                               unsigned long kn)
 {
-    //Ptr<BFMatcher> bf = BFMatcher::create(NORM_HAMMING, true);
     Ptr<DescriptorMatcher> matcher = DescriptorMatcher::create(DescriptorMatcher::BRUTEFORCE);
-    //BFMatcher matcher(NORM_HAMMING, false);    // NORM_L2, NORM_HAMMING
     vector<DMatch> matches;
     DMatch dist1, dist2;
 
@@ -189,6 +187,63 @@ unsigned long Match_find_SURF(vector<KeyPoint> kpf1,
     return temp;
 }
 
+// SIFT Find matches between points
+unsigned long Match_find_SIFT(vector<KeyPoint> kpf1,
+                              vector<KeyPoint> kpf2,
+                              Mat dpf1,
+                              Mat dpf2,
+                              vector<KeyPoint> *gp1,
+                              vector<KeyPoint> *gp2,
+                              vector<DMatch> *gm)
+{
+    Ptr<FlannBasedMatcher> matcher = FlannBasedMatcher::create();
+    vector<DMatch> matches;
+    DMatch dist1, dist2;
+ 
+    matcher->match(dpf1, dpf2, matches, noArray());     // Matches key points of the frame with key points of the frame2
+
+    // Sort match
+    unsigned long temp = 0;
+    unsigned long kn = static_cast<unsigned long>(matches.size());
+    for (unsigned long i = 0; i < kn - 1; i++) { //key_num - 1
+        dist1 = matches[i];
+        for (unsigned long j = i + 1; j < kn; j++) {
+            dist2 = matches[j];
+            if (dist2.distance < dist1.distance) {
+                dist1 = matches[j];
+                temp = j;
+            }
+            if (j == kn - 1) {
+                matches[temp] = matches[i];
+                matches[i] = dist1;
+                break;
+            }
+        }
+    }
+    //-- Вычисление максимального и минимального расстояния среди всех дескрипторов в пространстве признаков
+    float max_dist = 0, min_dist = 100;
+    for(size_t i = 0; i < matches.size(); i++ ) {
+        float dist = matches[i].distance;
+        if( dist < min_dist ) min_dist = dist;
+        if( dist > max_dist ) max_dist = dist;
+    }
+    cout << "-- Max dist : " << max_dist << endl;
+    cout << "-- Min dist : " << min_dist << endl;
+    // Selection of key points on both frames satisfying the threshold
+    temp = 0;
+    for (size_t i = 0; i < matches.size(); i++) {
+        if (matches[i].distance <  10 * min_dist) {   // threshold
+            int new_i = static_cast<int>( gp1->size() );
+            gp1->push_back( kpf1[ static_cast<unsigned long>( matches[i].queryIdx ) ] );    // queryIdx
+            gp2->push_back( kpf2[ static_cast<unsigned long>( matches[i].trainIdx ) ] );    // trainIdx
+            gm->push_back( DMatch(new_i, new_i, 0) );
+            temp++;
+        }
+    }
+    cout << "-- Temp : " << temp << endl << endl;
+    return temp;
+}
+
 int main()
 {
     Mat frame, frame2, frame3, frameImg, frameImg2, frame_grey, flow, img2Original;
@@ -199,7 +254,7 @@ int main()
 
         //  Initialize VIDEOCAPTURE
     VideoCapture cap;
-    int deviceID = 0;           //  camera 1
+    int deviceID = 1;           //  camera 1
     int apiID = cv::CAP_ANY;    //  0 = autodetect default API
     cap.open(deviceID + apiID); //  Open camera
     if(!cap.isOpened()) {   // Check if we succeeded
@@ -207,19 +262,19 @@ int main()
         return -1;
     }
     else {  //  Info about frame
-        cap.set(CAP_PROP_FRAME_WIDTH, FRAME_WIDTH); //320, 640, (640, 1280)
-        cap.set(CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT);   //240, 480, (360, 720)
-        //cap.set(CAP_PROP_POS_FRAMES, 0);
-        //cap.set(CAP_PROP_FPS, 30);
-        //cap.set(CAP_PROP_AUTOFOCUS, 0);
+        cap.set(CAP_PROP_FRAME_WIDTH, FRAME_WIDTH);     // 320, 640, (640, 1280)
+        cap.set(CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT);   // 240, 480, (360, 720)
+        //cap.set(CAP_PROP_POS_FRAMES, 0);              // Set zero-frame
+        //cap.set(CAP_PROP_FPS, 30);                    // Set FPS
+        cap.set(CAP_PROP_AUTOFOCUS, 0);                 // Set autofocus
         cap.read(frame);
 
         cout    << "Width = " << cap.get(CAP_PROP_FRAME_WIDTH) << endl
                 << "Height = " << cap.get(CAP_PROP_FRAME_HEIGHT) << endl
                 << "FPS = " << cap.get(CAP_PROP_FPS) << endl
                 //<< "nframes = " << cap.get(CAP_PROP_FRAME_COUNT) << endl
-                //<< "Auto focus" << cap.get(CAP_PROP_AUTOFOCUS) << endl
-                //<< "cap : " << cap.get(CAP_PROP_FPS) << endl
+                << "Auto focus" << cap.get(CAP_PROP_AUTOFOCUS) << endl
+                << "cap : " << cap.get(CAP_PROP_FPS) << endl
                 << "----------" <<endl;
 
             // Calculation FPS
@@ -235,99 +290,42 @@ int main()
         fps  = num_frames / seconds * 1000;
         cout << "Estimated frames per second : " << fps << endl;*/
     }
-    // Default cam          ------------------------------------------------------------//
-    /*VideoCapture cap2;
-    int deviceID2 = 0;           //  camera 1
-    int apiID2 = cv::CAP_ANY;    //  0 = autodetect default API
-    cap2.open(deviceID2 + apiID2); //  Open camera
-    if(!cap2.isOpened()) {   // Check if we succeeded
-        cerr << "ERROR! Unable to open camera\n";
-        return -1;
-    }
-    else {  //  Info about frame
-        cap2.set(CAP_PROP_FRAME_WIDTH, 640); //320, 640, (640, 1280)
-        cap2.set(CAP_PROP_FRAME_HEIGHT, 480);   //240, 480, (360, 720)
-        cap2.set(CAP_PROP_POS_FRAMES, 0);
-        cap2.read(frame2);
-
-        cout  <<    "Width = " << cap2.get(CAP_PROP_FRAME_WIDTH) << endl <<
-                    "Height = " << cap2.get(CAP_PROP_FRAME_HEIGHT) << endl <<
-                    "nframes = " << cap2.get(CAP_PROP_FRAME_COUNT) << endl;
-
-            // Calculation FPS
-        double fps;
-        int num_frames = 120;
-        frame_MSEC = cap.get(CAP_PROP_POS_MSEC);
-        for(int i = 0; i < num_frames; i++) {
-            cap.read(frame);
-        }
-        frame_MSEC2 = cap.get(CAP_PROP_POS_MSEC);
-        double seconds = frame_MSEC2 - frame_MSEC;
-        cout << "Time taken : " << seconds * 1000 << " seconds" << endl;
-        fps  = num_frames / seconds * 1000;
-        cout << "Estimated frames per second : " << fps << endl;
-    }*/ //                    ----------------------------------------------------------//
-
     
     //-------------------------------VARIABLES------------------------------------------//
     frame_pause = frame_pause / 30 * 1000;  // Convertion from frames per second to msec
 
-    // ORB keypoint
+        // ORB keypoint
     unsigned long key_num = 10;  // Num keypoint
     Ptr<FeatureDetector> detector = ORB::create(static_cast<int>(key_num), 1.2f, 8, 31, 0, 4, ORB::HARRIS_SCORE, 31);   // HARRIS_SCORE, FAST_SCORE
     //Ptr<SURF> detectorSURF = cv::xfeatures2d::SURF::create(static_cast<double>(key_num), 4, 3, true, false);   // cv::xfeatures2d::
     Ptr<SURF> detectorSURF = cv::xfeatures2d::SURF::create(100);
-    std::vector<KeyPoint> keypoints_frame, keypoints_frame2, keypoints_frame_SURF, keypoints_frame2_SURF;
-    Mat descriptors_frame, descriptors_frame2, descriptors_frame_SURF, descriptors_frame2_SURF;
+    Ptr<SIFT> detectorSIFT = cv::xfeatures2d::SIFT::create(0, 4, 0.04, 10, 1.6);
+    std::vector<KeyPoint> keypoints_frame, keypoints_frame2, keypoints_frame_SURF, keypoints_frame2_SURF, keypoints_frame_SIFT, keypoints_frame2_SIFT;
+    Mat descriptors_frame, descriptors_frame2, descriptors_frame_SURF, descriptors_frame2_SURF, descriptors_frame_SIFT, descriptors_frame2_SIFT;
 
-    // Brute-Force Matcher1
-    /*-----------------*/
-
-    unsigned long t = 0;              // Счетчик найденых точек
-    int f = 2;              // Переключение в режим калибровки
-    bool mode_cam = true;   // Режим работы камеры
-    Mat res;
-    Mat frame4 = Mat::zeros(Size(2 * frame.cols, frame.rows), CV_8UC3);
-    namedWindow("frame_epipol_double", WINDOW_AUTOSIZE);                    // Window for output result
-
-    // Для калибровки
+        // Для калибровки
     Matx33d intrinsic = Matx33d( 10,     0,  FRAME_WIDTH/2,
                                  0,     10,  FRAME_HEIGHT/2,
                                  0,     0,  1);
     Matx<double, 1, 5> distCoeffs = Matx<double, 1, 5>(0.0, 0.0, 0.0, 0.0, 0.0);  // (k1, k2, p1, p2, k3)
     vector<Mat> rvecs;
     vector<Mat> tvecs;
-    /*Mat distCoeffs = Mat(1, 5, CV_32FC1);  // Старая инициализация переменной
-    Mat intrinsic = Mat(3, 3, CV_32FC1);
-    intrinsic.ptr<float>(0)[0] = 1;
-    intrinsic.ptr<float>(1)[1] = 1;
-    for (int i = 0; i < 3; i++) {
-        for (int j = 0; j < 3; j++) {
-            intrinsic.ptr<float>(i)[j] = 0;
-            //printf("intrinsic(%i, %i) = %7.5f\n", i, j, intrinsic.ptr<double>(i)[j]);
-        }
-    }
-    for (int i = 0; i < 5; i++) {
-        distCoeffs.ptr<float>(0)[i] = 0;
-        //printf("distCoeffs[ %i ] = %7.5f\n", i, distCoeffs.ptr<double>(0)[i]);
-    }*/
     
-    //  Fundamental matrix
+        // Fundamental matrix
     Mat fundamental_matrix;
 
-    //  Epipolar linu
+        // Epipolar linu
     std::vector<cv::Point3f> lines[2];
     Mat frame_epipol1, frame_epipol2;
     
-    //  Array of array for frames key points  
+        //  Array of array for frames key points  
     Mat Pt1 = cv::Mat::eye(3, 4, CV_64F);   // Projection matrices for each camera
     Mat Pt2 = cv::Mat::eye(3, 4, CV_64F);  
     vector <Mat> Ps(2); // Matx34d          // Vector of projection matrices for each camera
     Ps[0] = cv::Mat(3, 4, CV_64F);
     Ps[1] = cv::Mat(3, 4, CV_64F);
     
-    
-    // SFM camera
+        // SFM camera
     cv::sfm::libmv_CameraIntrinsicsOptions camera {SFM_DISTORTION_MODEL_DIVISION, 
                                                     intrinsic(0, 0), 
                                                     intrinsic(1, 1), 
@@ -339,16 +337,24 @@ int main()
                                                     distCoeffs(0, 2),
                                                     distCoeffs(0, 3)};
     
-    
-    pcl::PointCloud <pcl::PointXYZ> cloud;
+        // Cloud of points
+    /*pcl::PointCloud <pcl::PointXYZ> cloud;
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud2 (new pcl::PointCloud<pcl::PointXYZ>);
-    
     boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer (new pcl::visualization::PCLVisualizer ("3D Viewer"));
     viewer->setBackgroundColor(0, 0, 0);
-    viewer->addCoordinateSystem(50.0);
+    viewer->addCoordinateSystem(50.0);*/
     
+        // Other variables
+    unsigned long t = 0;    // Счетчик найденых точек
+    int f = 2;              // Переключение в режим калибровки
+    bool mode_cam = false;   // Режим работы камеры
+    Mat res;
+    Mat frame4 = Mat::zeros(Size(2 * frame.cols, frame.rows), CV_8UC3);
+    if (f != 2) namedWindow("frame_epipol_double", WINDOW_AUTOSIZE);                    // Window for output result
     int c;
-    while(!viewer->wasStopped ()) {                      // Основной режим работы камеры, потоковый режим
+    
+        // START
+    while(1) {         // Основной режим работы камеры, потоковый режим, !viewer->wasStopped ()
         if ( (f == 1) && (mode_cam == true) ) {   
             //  Wait for a new frame from camera and store it into 'frameImg'
             if (!cap.read(frameImg)) { // check if we succeeded
@@ -516,9 +522,9 @@ int main()
 
             //imshow("Frame_live", frame);
             //cout  <<    "MSEC = " << cap.get(CAP_PROP_POS_MSEC) << endl;
-        }                           // Покадровый режим работы камеры
+        }                                   // Покадровый режим работы камеры
         else if ((f == 1) && (mode_cam == false)) { 
-            //  Wait for a new frame from camera and store it into 'frameImg'
+                //  Wait for a new frame from camera and store it into 'frameImg'
             if (!cap.read(frameImg)) { // check if we succeeded
                 cerr << "ERROR! blank frame grabbed\n";
                 break;
@@ -537,37 +543,49 @@ int main()
             if ( button_nf == 32 )             // If press "space"
             {
                 frame3.copyTo( frame );
-                //detector->detectAndCompute(frame, noArray(), keypoints_frame, descriptors_frame);       // Detected key points at frame
+                //detector->detectAndCompute(frame, noArray(), keypoints_frame, descriptors_frame);             // Detected key points at frame
                 detectorSURF->detectAndCompute(frame, noArray(), keypoints_frame_SURF, descriptors_frame_SURF); // SURF detected frame
+                detectorSIFT->detectAndCompute(frame, noArray(), keypoints_frame_SIFT, descriptors_frame_SIFT);  // SIFT detected frame
                 if ( !frame2.empty() ) 
                 {
-                    //detector->detectAndCompute(frame2, noArray(), keypoints_frame2, descriptors_frame2);    // Detected key points at frame2
+                    //detector->detectAndCompute(frame2, noArray(), keypoints_frame2, descriptors_frame2);              // Detected key points at frame2
                     detectorSURF->detectAndCompute(frame2, noArray(), keypoints_frame2_SURF, descriptors_frame2_SURF);  // SURF detected frame2
+                    detectorSIFT->detectAndCompute(frame2, noArray(), keypoints_frame2_SIFT, descriptors_frame2_SIFT);      // SIFT detected frame2
 
                     if ((keypoints_frame_SURF.size() != 0) && (keypoints_frame2_SURF.size() != 0)) {  // Matching key points
                         vector <DMatch> good_matches;
                         vector <KeyPoint> good_points1, good_points2;
-                        t = Match_find_SURF(    keypoints_frame_SURF,
+                        /*t = Match_find_SURF(    keypoints_frame_SURF,
                                                 keypoints_frame2_SURF,
                                                 descriptors_frame_SURF,
                                                 descriptors_frame2_SURF,
                                                 &good_points1,
                                                 &good_points2,
                                                 &good_matches,
-                                                key_num);               // t = number of good points
+                                                key_num);               // t = number of good points */
+                        t = Match_find_SIFT(    keypoints_frame_SIFT,
+                                                keypoints_frame2_SIFT,
+                                                descriptors_frame_SIFT,
+                                                descriptors_frame2_SIFT,
+                                                &good_points1,
+                                                &good_points2,
+                                                &good_matches);
 
                         /*RNG rng(12345);     // Drawing found key points
-                        for (unsigned long i = 0; i < good_points1.size(); i++) {
-                            Scalar color = Scalar( rng.uniform(0, 255), rng.uniform(0,255), rng.uniform(0,255) );
-                            circle(frame, good_points1[i].pt, 2, color, 2, LINE_8, 0);
-                            circle(frame2, good_points2[i].pt, 2, color, 2, LINE_8, 0);
-                        }*/
-                        /*drawMatches(frame, good_points1, frame2, good_points2, good_matches, frame4);
+//                        for (unsigned long i = 0; i < good_points1.size(); i++) {
+//                            Scalar color = Scalar( rng.uniform(0, 255), rng.uniform(0,255), rng.uniform(0,255) );
+//                            circle(frame, good_points1[i].pt, 2, color, 2, LINE_8, 0);
+//                            circle(frame2, good_points2[i].pt, 2, color, 2, LINE_8, 0);
+//                        }
+                        Scalar color = Scalar( rng.uniform(0, 255), rng.uniform(0,255), rng.uniform(0,255) );
+                        drawKeypoints(frame, good_points1, frame_epipol1, color, DrawMatchesFlags::DRAW_RICH_KEYPOINTS);
+                        drawKeypoints(frame2, good_points2, frame_epipol2, color, DrawMatchesFlags::DRAW_RICH_KEYPOINTS);
+                        Rect r1(0, 0, frame_epipol1.cols, frame_epipol1.rows);
+                        Rect r2(frame_epipol2.cols, 0, frame_epipol2.cols, frame_epipol2.rows);
+                        frame_epipol1.copyTo(frame4( r1 ));
+                        frame_epipol2.copyTo(frame4( r2 ));
                         imshow("1-2 frame", frame4);*/
-                        /*Rect r1(0, 0, frame.cols, frame.rows);
-                        Rect r2(frame2.cols, 0, frame2.cols, frame2.rows);
-                        frame.copyTo(frame4( r1 ));
-                        frame2.copyTo(frame4( r2 ));
+                        /*drawMatches(frame, good_points1, frame2, good_points2, good_matches, frame4);
                         imshow("1-2 frame", frame4);*/
                         
                         if ((good_points1.size() >= 8) && (good_points2.size() >= 8)) { // Проверка на наличие точек, удовлетворяющих порогу
@@ -595,7 +613,7 @@ int main()
                             
                             // FindFundamentalMat     -------------------------------------------------------------//      step 4
                             sfm::reconstruct(points2frame, Ps, pnts3D, intrinsic, true);
-                            cout    << "pnts3D.cols = " << pnts3D.cols
+                            /*cout    << "pnts3D.cols = " << pnts3D.cols
                                     << endl;
                             for (int i = 0; i < pnts3D.cols; i++){
                                 for (int j = 0; j < pnts3D.rows; j++){
@@ -623,12 +641,12 @@ int main()
                             pcl::io::savePCDFileASCII ("Reconstruct_cloud.pcd", cloud);
                                 // Load 3D points (cloud points)
                             //pcl::PointCloud<pcl::PointXYZ>::Ptr cloud2 (new pcl::PointCloud<pcl::PointXYZ>);
-                            pcl::io::loadPCDFile("Reconstruct_cloud.pcd", *cloud2);
+                            pcl::io::loadPCDFile("Reconstruct_cloud.pcd", *cloud2);*/
                                 // View cloud points
                             /*pcl::visualization::CloudViewer viewer("Cloud Viewer");
                             viewer.showCloud(cloud2, "cloud");*/
                             
-                                
+                            
                             
                             // END FindFundamentalMat     ---------------------------------------------------------//    END step 4
                             
@@ -699,15 +717,15 @@ int main()
                     destroyWindow("1-2 frame");
                 }
             }
-            if (cloud.size() != 0) {
-                // Clear the view
+            /*if (cloud.size() != 0) {        // View cloud points
+                    // Clear the view
                 viewer->removeAllShapes();
                 viewer->removeAllPointClouds();
                 viewer->addPointCloud<pcl::PointXYZ>(cloud2, "sample cloud", 0);
                 viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1, "sample cloud");
-                viewer->spinOnce (20);
-            }
-        }                           // Калибровка камеры  press "с" or "C"----------------------//      step 0
+                viewer->spinOnce (5);
+            }*/
+        }                                   // Калибровка камеры  press "с" or "C"----------------------//      step 0
         else if ( f == 2 ) {
             int successes = 0;                                      // Счетчик удачных калибровочных кадров
             int num_successes = 10;                                    // Кол-во калибровочных кадров
@@ -827,7 +845,7 @@ int main()
             namedWindow("calibration", WINDOW_AUTOSIZE);
             destroyWindow("calibration");
             f = 1;
-        }                           // END Калибровка камеры  ----------------------------------//   END step 0
+        }                                   // END Калибровка камеры  ----------------------------------//   END step 0
 
         // Обработка нажатой кнопки  --------------------------------------------------------//
         c = waitKey(1);
@@ -839,6 +857,8 @@ int main()
         } else if ( (c == 99) || (c == 67) ) {      // Calibrate camera, press "с" & "C"
             f = 2;
             imshow("calibration", frame);
+            namedWindow("frame_epipol_double", WINDOW_AUTOSIZE);
+            destroyWindow("frame_epipol_double");
         } else if ( (c == 70) || (c == 102) ) {     // Output fundamental_matrix into file, press "f" & "F"
             FileStorage fundam;
             fundam.open("/home/roman/Sky_points/Fundamental_matrix.txt", FileStorage::WRITE);
@@ -850,6 +870,8 @@ int main()
             if (mode_cam == true) {     // Закрываем окна при смене режима
                 destroyWindow("real_time");
                 destroyWindow("1-2 frame");
+            } else {
+                destroyWindow("frame_epipol_double");
             }
         } 
         // END Обработка нажатой кнопки  ----------------------------------------------------//
