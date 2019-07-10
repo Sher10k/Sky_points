@@ -52,8 +52,10 @@ OBJECTS_DIR   = ./
 
 ####### Files
 
-SOURCES       = ../main.cpp 
-OBJECTS       = main.o
+SOURCES       = ../Source/camcalibration.cpp \
+		../main.cpp 
+OBJECTS       = camcalibration.o \
+		main.o
 DIST          = ../../../Qt/5.12.4/gcc_64/mkspecs/features/spec_pre.prf \
 		../../../Qt/5.12.4/gcc_64/mkspecs/common/unix.conf \
 		../../../Qt/5.12.4/gcc_64/mkspecs/common/linux.conf \
@@ -247,7 +249,8 @@ DIST          = ../../../Qt/5.12.4/gcc_64/mkspecs/features/spec_pre.prf \
 		../../../Qt/5.12.4/gcc_64/mkspecs/features/exceptions.prf \
 		../../../Qt/5.12.4/gcc_64/mkspecs/features/yacc.prf \
 		../../../Qt/5.12.4/gcc_64/mkspecs/features/lex.prf \
-		../../Sky_points.pro  ../main.cpp
+		../../Sky_points.pro ../Header/camcalibration.h ../Source/camcalibration.cpp \
+		../main.cpp
 QMAKE_TARGET  = Sky_points
 DESTDIR       = 
 TARGET        = Sky_points
@@ -663,7 +666,8 @@ distdir: FORCE
 	@test -d $(DISTDIR) || mkdir -p $(DISTDIR)
 	$(COPY_FILE) --parents $(DIST) $(DISTDIR)/
 	$(COPY_FILE) --parents ../../Qt/5.12.4/gcc_64/mkspecs/features/data/dummy.cpp $(DISTDIR)/
-	$(COPY_FILE) --parents ../main.cpp $(DISTDIR)/
+	$(COPY_FILE) --parents ../Header/camcalibration.h $(DISTDIR)/
+	$(COPY_FILE) --parents ../Source/camcalibration.cpp ../main.cpp $(DISTDIR)/
 
 
 clean: compiler_clean 
@@ -711,7 +715,10 @@ compiler_clean: compiler_moc_predefs_clean
 
 ####### Compile
 
-main.o: ../main.cpp 
+camcalibration.o: ../Source/camcalibration.cpp ../Header/camcalibration.h
+	$(CXX) -c $(CXXFLAGS) $(INCPATH) -o camcalibration.o ../Source/camcalibration.cpp
+
+main.o: ../main.cpp ../Header/camcalibration.h
 	$(CXX) -c $(CXXFLAGS) $(INCPATH) -o main.o ../main.cpp
 
 ####### Install

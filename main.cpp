@@ -14,6 +14,8 @@
 #define CERES_FOUND true
 #define OPENCV_TRAITS_ENABLE_DEPRECATED
 
+#include "Header/camcalibration.h"
+
 #include <iostream>
 #include <string>
 //#include <stdio.h>
@@ -244,8 +246,27 @@ unsigned long Match_find_SIFT(vector<KeyPoint> kpf1,
     return temp;
 }
 
+
 int main()
 {
+    Matx33d intrinsic1;
+    Matx<double, 1, 5> distCoeffs1;
+    vector<Mat> rvecs1;
+    vector<Mat> tvecs1;
+    
+    FileStorage fs; 
+    fs.open("Calibrate_cam.txt", FileStorage::READ);     // Read from file data calibration
+    fs["intrinsic"] >> intrinsic1;
+    fs["distCoeffs"] >> distCoeffs1;
+    fs["rvecs"] >> rvecs1;
+    fs["tvecs"] >> tvecs1;
+    fs.release();
+    
+    CalibrationCamera cap4(intrinsic1, distCoeffs1, rvecs1, tvecs1, FRAME_WIDTH, FRAME_HEIGHT);
+    cap4.printParam();
+    
+    
+    
     Mat frame, frame2, frame3, frameImg, frameImg2, frame_grey, flow, img2Original;
     double frame_pause = 0;
 //    double frame_MSEC, frame_MSEC2; 
@@ -265,15 +286,15 @@ int main()
         cap.set(CAP_PROP_FRAME_WIDTH, FRAME_WIDTH);     // 320, 640, (640, 1280)
         cap.set(CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT);   // 240, 480, (360, 720)
         //cap.set(CAP_PROP_POS_FRAMES, 0);              // Set zero-frame
+        //cap.set(CAP_PROP_AUTOFOCUS, 0);               // Set autofocus
         //cap.set(CAP_PROP_FPS, 30);                    // Set FPS
-        cap.set(CAP_PROP_AUTOFOCUS, 0);                 // Set autofocus
         cap.read(frame);
 
         cout    << "Width = " << cap.get(CAP_PROP_FRAME_WIDTH) << endl
                 << "Height = " << cap.get(CAP_PROP_FRAME_HEIGHT) << endl
                 << "FPS = " << cap.get(CAP_PROP_FPS) << endl
                 //<< "nframes = " << cap.get(CAP_PROP_FRAME_COUNT) << endl
-                << "Auto focus" << cap.get(CAP_PROP_AUTOFOCUS) << endl
+                //<< "Auto focus" << cap.get(CAP_PROP_AUTOFOCUS) << endl
                 << "cap : " << cap.get(CAP_PROP_FPS) << endl
                 << "----------" <<endl;
 
@@ -668,7 +689,7 @@ int main()
 //                                    cout << endl;
 //                                }
 //                                FileStorage poins3D;      // Вывод в файл 3д точек
-//                                poins3D.open("/home/roman/Sky_points/poins3D_XYZ.txt", FileStorage::WRITE);
+//                                poins3D.open("poins3D_XYZ.txt", FileStorage::WRITE);
 //                                poins3D << "pnts3D" << pnts3D;
 //                                poins3D.release();
                                 
@@ -716,7 +737,13 @@ int main()
                     namedWindow("1-2 frame", WINDOW_AUTOSIZE);
                     destroyWindow("1-2 frame");
                 }
+            } else if ( (button_nf == 99) || (button_nf == 67) ) {      // Calibrate camera, press "с" & "C"
+                f = 2;
+                imshow("calibration", frame);
+                namedWindow("frame_epipol_double", WINDOW_AUTOSIZE);
+                destroyWindow("frame_epipol_double");
             }
+            
             /*if (cloud.size() != 0) {        // View cloud points
                     // Clear the view
                 viewer->removeAllShapes();
@@ -795,7 +822,7 @@ int main()
 
             if ( (batton_calib == 114) || (batton_calib == 82) ) {  // Read from file
                 FileStorage fs; 
-                fs.open("/home/roman/Sky_points/Calibrate_cam.txt", FileStorage::READ);     // Read from file data calibration
+                fs.open("Calibrate_cam.txt", FileStorage::READ);     // Read from file data calibration
                 fs["intrinsic"] >> intrinsic;
                 fs["distCoeffs"] >> distCoeffs;
                 fs["rvecs"] >> rvecs;
@@ -816,7 +843,7 @@ int main()
                 distCoeffs(0, 4) = 0.0; // k3
                 
                 FileStorage fs;
-                fs.open("/home/roman/Sky_points/Calibrate_cam_Zero.txt", FileStorage::WRITE);    // Write in file data calibration
+                fs.open("Calibrate_cam_Zero.txt", FileStorage::WRITE);    // Write in file data calibration
                 fs << "intrinsic" << intrinsic;
                 fs << "distCoeffs" << distCoeffs;
                 fs.release();
@@ -834,7 +861,7 @@ int main()
                                 tvecs,
                                 CALIB_FIX_K1 | CALIB_FIX_K2 | CALIB_FIX_K3);                                 // Calibrate  | CALIB_FIX_K6
                 FileStorage fs;
-                fs.open("/home/roman/Sky_points/Calibrate_cam.txt", FileStorage::WRITE);    // Write in file data calibration
+                fs.open("Calibrate_cam.txt", FileStorage::WRITE);    // Write in file data calibration
                 fs << "intrinsic" << intrinsic;
                 fs << "distCoeffs" << distCoeffs;
                 fs << "rvecs" << rvecs;
@@ -861,7 +888,7 @@ int main()
             destroyWindow("frame_epipol_double");
         } else if ( (c == 70) || (c == 102) ) {     // Output fundamental_matrix into file, press "f" & "F"
             FileStorage fundam;
-            fundam.open("/home/roman/Sky_points/Fundamental_matrix.txt", FileStorage::WRITE);
+            fundam.open("Fundamental_matrix.txt", FileStorage::WRITE);
             fundam << "fundamental_matrix" << fundamental_matrix;
             fundam.release();
         } else if ( (c == 77) || (c == 109) ) {     // Change mode camera, press "m" or "M"
