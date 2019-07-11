@@ -16,6 +16,7 @@ DEFINES += QT_DEPRECATED_WARNINGS
 
 SOURCES += \
         Source/camcalibration.cpp \
+        Source/sfm_train.cpp \
         main.cpp
 
 # Default rules for deployment.
@@ -86,4 +87,5 @@ LIBS += -lboost_system \
 #        -lopencv_sfm
 
 HEADERS += \
-    Header/camcalibration.h
+    Header/camcalibration.h \
+    Header/sfm_train.h
