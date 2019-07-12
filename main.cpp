@@ -6,11 +6,12 @@
  * "с" & "C" - Calibrate camera
  * "r" or "R" - Read from file, calibrate mode
  * "0" - use default parameters, calibrate mode
+ * "l" & "L" -  Output flow into file 
  * "f" & "F" - Output fundamental_matrix into file
- * "m" or "M" - Change mode camera
  * "Space" - Сделать снимок для покадрового режима
  * 
  */
+
 #define CERES_FOUND true
 #define OPENCV_TRAITS_ENABLE_DEPRECATED
 
@@ -23,12 +24,13 @@
 #include <opencv2/core/mat.hpp>
 //#include <opencv2/core/types_c.h>
 //#include <opencv2/core/types.hpp>
-//#include <opencv2/core/utility.hpp>
+#include <opencv2/core/utility.hpp>
 //#include <opencv2/core/ocl.hpp>
 //#include <opencv2/videoio.hpp>
 #include <opencv2/imgproc.hpp>
 //#include <opencv2/imgproc/imgproc_c.h>
 #include <opencv2/highgui.hpp>
+//#include <opencv2/video.hpp>
 //#include <opencv2/video/tracking.hpp>
 //#include <opencv2/features2d.hpp>
 //#include <opencv2/xfeatures2d.hpp>
@@ -85,7 +87,7 @@ void drawlines(Mat& in_img, std::vector<cv::Point3f>& line, vector<Point2f>& pts
 int main()
 {
     //-------------------------------------- VARIABLES ------------------------------------------//
-    Mat frameRAW, frame; 
+    Mat frameRAW, frame, frameCache; 
 //    double frame_MSEC, frame_MSEC2; 
 //    int thresh = 200;
 //    int max_thresh = 255;
@@ -102,7 +104,7 @@ int main()
         //  Array of array for frames key points  
     Mat Pt1 = cv::Mat::eye(3, 4, CV_64F);   // Projection matrices for each camera
     Mat Pt2 = cv::Mat::eye(3, 4, CV_64F);  
-    vector <Mat> Ps(2); // Matx34d          // Vector of projection matrices for each camera
+    vector<Mat> Ps(2); // Matx34d          // Vector of projection matrices for each camera
     Ps[0] = cv::Mat(3, 4, CV_64F);
     Ps[1] = cv::Mat(3, 4, CV_64F);
     
@@ -129,6 +131,7 @@ int main()
     int f = 2;              // Переключение в режим калибровки
     Mat frame4 = Mat::zeros(Size(2 * frame.cols, frame.rows), CV_8UC3);
     char nF = 1;
+    int win = 3, vecS = 1;
     int click;
 
     
@@ -278,6 +281,32 @@ int main()
                 viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1, "sample cloud");
                 viewer->spinOnce (5);
             }*/
+            
+            
+            if ( !frameCache.empty() )
+            {
+                if ( (button_nf == 43) || (button_nf == 61) )  
+                {
+                    win += 2;
+                    if (win > frame.rows / 2) win = frame.rows / 2;
+                    vecS ++;
+                    if (vecS > frame.rows / 10) vecS = frame.rows / 10;
+                    cout << "win = " << win << endl;
+                    cout << "vecS = " << vecS << endl;
+                }
+                if ( (button_nf == 45) || (button_nf == 95) )
+                {
+                    win -= 2;
+                    if (win <= 0) win = 1;
+                    vecS --;
+                    if (vecS <= 0) vecS = 1;
+                    cout << "win = " << win << endl;
+                    cout << "vecS = " << vecS << endl;
+                }
+                MySFM.opticalFlow(&frame, &frameCache, win, 1);
+                imshow("OpticalFlow", MySFM.img2Original);
+            }
+            frame.copyTo(frameCache);
         }                                   
         else if ( f == 2 ) {                            // Калибровка камеры  press "с" or "C"----------------------//      step 0
             Calib.calibratCamera(8, 6, 10);
@@ -287,22 +316,29 @@ int main()
 
         //-------------------------------------- MENU -------------------------------------------//
         click = waitKey(1);
-        if( click == 27 ) {                             // Interrupt the cycle, press "ESC"
+        if( click == 27 ) {                                 // Interrupt the cycle, press "ESC"
             break;
-        } else if ( click == 13 ) {                     // Take picture, press "Enter"
-            imshow("foto", frame4);
-        } else if ( (click == 99) || (click == 67) ) {      // Calibrate camera, press "с" & "C"
+        } else if ( click == 13 ) {                         // Take picture, press "Enter"
+            imshow("foto", frame);
+        } else if ( (click == 99) || (click == 67) ) {          // Calibrate camera, press "с" & "C"
             f = 2;
             namedWindow("real_time", WINDOW_AUTOSIZE);
             destroyWindow("real_time");
             namedWindow("1-2 frame", WINDOW_AUTOSIZE);
             destroyWindow("1-2 frame");
-        } else if ( (click == 70) || (click == 102) ) {     // Output fundamental_matrix into file, press "f" & "F"
+            namedWindow("OpticalFlow", WINDOW_AUTOSIZE);
+            destroyWindow("OpticalFlow");
+        } else if ( (click == 70) || (click == 102) ) {         // Output fundamental_matrix into file, press "f" & "F"
             FileStorage fundam;
             fundam.open("Fundamental_matrix.txt", FileStorage::WRITE);
             fundam << "fundamental_matrix" << MySFM.F;
             fundam.release();
             cout << " --- Fundamental matrix written into file: Fundamental_matrix.txt" << endl << endl;
+        } else if ( (click == 76) || (click == 108) ) {         // Output flow into file, press "l" & "L"
+            FileStorage FLOW;
+            FLOW.open("FLOW_frame.txt", FileStorage::WRITE);
+            FLOW << "flow" << MySFM.flow;
+            FLOW.release();
         }
         //------------------------------------ END MENU -----------------------------------------//
     }

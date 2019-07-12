@@ -7,12 +7,13 @@
 #include <iostream>
 #include <opencv2/core.hpp>
 //#include <opencv2/core/mat.hpp>
-//#include <opencv2/imgproc.hpp>
+#include <opencv2/imgproc.hpp>
 #include <opencv2/highgui.hpp>
 //#include <opencv2/features2d.hpp>
 #include <opencv2/xfeatures2d.hpp>
 //#include <opencv2/xfeatures2d/nonfree.hpp>
 #include <opencv2/calib3d.hpp>
+#include <opencv2/video.hpp>
 
 #include <opencv2/sfm.hpp>
 //#include <opencv2/sfm/simple_pipeline.hpp>
@@ -72,6 +73,9 @@ public:
         // 3D points
     cv::Mat points3D;
     
+        // Optical flow
+    Mat flow, frameGREY, frameCacheGREY, img2Original;
+    
     
     SFM_Reconstruction(cv::VideoCapture *);
     void setParam(cv::VideoCapture *);
@@ -82,6 +86,7 @@ public:
     void fundametalMat();
     void projectionsMat();
     void triangulationPoints();
+    void opticalFlow(Mat *, Mat *, int, int);
     
 };
 

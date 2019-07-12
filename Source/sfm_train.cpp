@@ -178,3 +178,24 @@ void SFM_Reconstruction::triangulationPoints()
     cout << " --- 3D points written into file: poins3D_XYZ.txt" << endl << endl;
 }
 
+void SFM_Reconstruction::opticalFlow(Mat *f, Mat *fc, int win, int vecS)
+{
+    img2Original = *f;
+    flow = Mat(img2Original.cols, img2Original.rows, CV_32FC2);
+    cvtColor(*f, frameGREY, COLOR_BGR2GRAY);
+    cvtColor(*fc, frameCacheGREY, COLOR_BGR2GRAY);
+    calcOpticalFlowFarneback(frameGREY, frameCacheGREY, flow, 0.9, 1, 12, 2, 8, 1.7, 0);//OPTFLOW_FARNEBACK_GAUSSIAN
+    
+    //cv::normalize(flow, flow, 1, 0, NORM_L2, -1, noArray());
+    
+    for (int y = 0; y < img2Original.rows; y += win) {
+        for (int x = 0; x < img2Original.cols; x += win) {
+            // get the flow from y, x position * 3 for better visibility
+            const Point2f flowatxy = flow.at<Point2f>(y, x) * vecS;
+            // draw line at flow direction
+            line(img2Original, Point(x, y), Point(cvRound(x + flowatxy.x), cvRound(y + flowatxy.y)), Scalar(255, 200, 0));
+            // draw initial point
+            circle(img2Original, Point(x, y), 1, Scalar(0, 0, 0), -1);
+        }
+    }
+}

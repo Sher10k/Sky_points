@@ -115,6 +115,10 @@ if ((MySFM.good_points1.size() >= 8) && (MySFM.good_points2.size() >= 8))
 
 
 
+
+
+
+
 // SURF Find matches between points
 unsigned long Match_find_SURF(vector<KeyPoint> kpf1,
                               vector<KeyPoint> kpf2,
@@ -173,6 +177,9 @@ unsigned long Match_find_SURF(vector<KeyPoint> kpf1,
     cout << "-- Temp : " << temp << endl << endl;
     return temp;
 }
+
+
+
 
 
 
