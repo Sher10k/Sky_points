@@ -1,24 +1,21 @@
 
 #include "Header/sfm_train.h"
 
-using namespace std;
-using namespace cv;
-
-SFM_Reconstruction::SFM_Reconstruction(VideoCapture *data_CAP)
+SFM_Reconstruction::SFM_Reconstruction(cv::VideoCapture *data_CAP)
 {
     SFM_Reconstruction::setParam(data_CAP);
 }
 
-void SFM_Reconstruction::setParam(VideoCapture *data_CAP)
+void SFM_Reconstruction::setParam(cv::VideoCapture *data_CAP)
 {
     CAPsfm = *data_CAP;
-    Mat frame;
+    cv::Mat frame;
     CAPsfm.read(frame);
     width_frame = frame.cols;
     height_frame = frame.rows;
-    frame1 = Mat::zeros(Size(width_frame, height_frame), CV_8UC3);
-    frame2 = Mat::zeros(Size(width_frame, height_frame), CV_8UC3);
-    frame4 = Mat::zeros(Size(2 * width_frame, height_frame), CV_8UC3);
+    frame1 = cv::Mat::zeros(cv::Size(width_frame, height_frame), CV_8UC3);
+    frame2 = cv::Mat::zeros(cv::Size(width_frame, height_frame), CV_8UC3);
+    frame4 = cv::Mat::zeros(cv::Size(2 * width_frame, height_frame), CV_8UC3);
     numKeypoints = 0;
 }
 
@@ -29,10 +26,10 @@ void SFM_Reconstruction::f1Tof2()
     descriptors2_SIFT = descriptors1_SIFT;
 }
 
-void SFM_Reconstruction::detectKeypoints(Mat *frame)
+void SFM_Reconstruction::detectKeypoints(cv::Mat *frame)
 {
     frame1 = *frame;
-    detectorSIFT->detectAndCompute(frame1, noArray(), keypoints1_SIFT, descriptors1_SIFT);
+    detectorSIFT->detectAndCompute(frame1, cv::noArray(), keypoints1_SIFT, descriptors1_SIFT);
 }
 
 void SFM_Reconstruction::matchKeypoints()
@@ -46,6 +43,28 @@ void SFM_Reconstruction::matchKeypoints()
                                        &good_points1,
                                        &good_points2,
                                        &good_matches);
+        points1.clear();
+        points2.clear();
+        points1.resize(numKeypoints);
+        points2.resize(numKeypoints);
+        cv::KeyPoint::convert(good_points1, points1);     // Convert from KeyPoint to Point2f
+        cv::KeyPoint::convert(good_points2, points2);
+        
+        pointsMass.clear();
+        pointsMass.resize(2);
+        pointsMass[0] = cv::Mat(2, static_cast<int>(numKeypoints), CV_64F);
+        pointsMass[1] = cv::Mat(2, static_cast<int>(numKeypoints), CV_64F);
+        for (int i = 0; i < static_cast<int>(numKeypoints); i++) {         // Unioning the key points in new variable
+            pointsMass[0].at<float>(0, i) = points1[static_cast<unsigned long>(i)].x;
+            pointsMass[0].at<float>(1, i) = points1[static_cast<unsigned long>(i)].y;
+            pointsMass[1].at<float>(0, i) = points2[static_cast<unsigned long>(i)].x;
+            pointsMass[1].at<float>(1, i) = points2[static_cast<unsigned long>(i)].y;
+            /*cout    << "points2frame [0](0, " << i << ") = " << points2frame[0].at<float>(0, i) << endl
+                    << "points2frame [0](1, " << i << ") = " << points2frame[0].at<float>(1, i) << endl
+                    << "points2frame [1](0, " << i << ") = " << points2frame[1].at<float>(0, i) << endl
+                    << "points2frame [1](1, " << i << ") = " << points2frame[1].at<float>(1, i) << endl
+                    << endl;*/
+        }
     }
 }
 
@@ -57,19 +76,19 @@ void SFM_Reconstruction::goodClear()
 }
 
 // SIFT Find matches between points
-unsigned long SFM_Reconstruction::Match_find_SIFT(vector<KeyPoint> kpf1,
-                              vector<KeyPoint> kpf2,
-                              Mat dpf1,
-                              Mat dpf2,
-                              vector<KeyPoint> *gp1,
-                              vector<KeyPoint> *gp2,
-                              vector<DMatch> *gm)
+unsigned long SFM_Reconstruction::Match_find_SIFT(vector<cv::KeyPoint> kpf1,
+                                                  vector<cv::KeyPoint> kpf2,
+                                                  cv::Mat dpf1,
+                                                  cv::Mat dpf2,
+                                                  vector<cv::KeyPoint> *gp1,
+                                                  vector<cv::KeyPoint> *gp2,
+                                                  vector<cv::DMatch> *gm)
 {
-    Ptr<FlannBasedMatcher> matcher = FlannBasedMatcher::create();
-    vector<DMatch> matches;
-    DMatch dist1, dist2;
+    cv::Ptr<cv::FlannBasedMatcher> matcher = cv::FlannBasedMatcher::create();
+    vector<cv::DMatch> matches;
+    cv::DMatch dist1, dist2;
  
-    matcher->match(dpf1, dpf2, matches, noArray());     // Matches key points of the frame with key points of the frame2
+    matcher->match(dpf1, dpf2, matches, cv::noArray());     // Matches key points of the frame with key points of the frame2
 
     // Sort match
     unsigned long temp = 0;
@@ -105,10 +124,57 @@ unsigned long SFM_Reconstruction::Match_find_SIFT(vector<KeyPoint> kpf1,
             int new_i = static_cast<int>( gp1->size() );
             gp1->push_back( kpf1[ static_cast<unsigned long>( matches[i].queryIdx ) ] );    // queryIdx
             gp2->push_back( kpf2[ static_cast<unsigned long>( matches[i].trainIdx ) ] );    // trainIdx
-            gm->push_back( DMatch(new_i, new_i, 0) );
+            gm->push_back( cv::DMatch(new_i, new_i, 0) );
             temp++;
         }
     }
     cout << "-- Temp : " << temp << endl << endl;
     return temp;
 }
+
+void SFM_Reconstruction::fundametalMat()
+{
+    if (numKeypoints > 7 )
+    {
+        F = cv::findFundamentalMat(points1, points2, cv::FM_RANSAC, 1.0, 0.99, cv::noArray());
+        
+    } else {
+        CV_Error(cv::Error::StsOutOfRange, "Not enough keypoints");
+    }
+}
+
+
+void SFM_Reconstruction::projectionsMat()
+{
+    if ( !F.empty() )
+    {
+        Proj.clear();
+        
+        cv::sfm::projectionsFromFundamental(F, Pt1, Pt2);
+        
+        Proj.push_back(Pt1);
+        Proj.push_back(Pt2);
+        
+    } else {
+        CV_Error(cv::Error::StsOutOfRange, "Fundamental matrix is empty");
+    }
+}
+
+void SFM_Reconstruction::triangulationPoints()
+{
+    cv::sfm::triangulatePoints(pointsMass, Proj, points3D);
+    
+    for (int i = 0; i < points3D.cols; i++){
+        for (int j = 0; j < points3D.rows; j++){
+            cout << " " << points3D.at<double>(i, j) << " ";
+        }
+        cout << endl;
+    }
+    cv::FileStorage poins3D;      // Вывод в файл 3д точек
+    poins3D.open("poins3D_XYZ.txt", cv::FileStorage::WRITE);
+    poins3D << "points3D" << points3D;
+    poins3D.release();
+    cout    << "points3D.cols = " << points3D.cols << endl;
+    cout << " --- 3D points written into file: poins3D_XYZ.txt" << endl << endl;
+}
+

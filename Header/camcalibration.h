@@ -16,15 +16,15 @@ private:
     
 public:
     
-    VideoCapture CAP;
-    Matx33d cameraMatrix;           //= Matx33d( 10,     0,  FRAME_WIDTH/2, 0,     10,  FRAME_HEIGHT/2, 0,     0,  1);
-    Matx<double, 1, 5> distCoeffs;  //= Matx<double, 1, 5>(0.0, 0.0, 0.0, 0.0, 0.0);  // (k1, k2, p1, p2, k3)
-    vector<Mat> rvecs;
-    vector<Mat> tvecs;
+    cv::VideoCapture CAP;
+    cv::Matx33d cameraMatrix;           //= Matx33d( 10,     0,  FRAME_WIDTH/2, 0,     10,  FRAME_HEIGHT/2, 0,     0,  1);
+    cv::Matx<double, 1, 5> distCoeffs;  //= Matx<double, 1, 5>(0.0, 0.0, 0.0, 0.0, 0.0);  // (k1, k2, p1, p2, k3)
+    std::vector<cv::Mat> rvecs;
+    std::vector<cv::Mat> tvecs;
     int width_frame, height_frame;
     
-    CalibrationCamera(VideoCapture *);
-    void setParam(VideoCapture *);
+    CalibrationCamera(cv::VideoCapture *);
+    void setParam(cv::VideoCapture *);
     void printParam();
     void calibratCamera(int, int, int);
     

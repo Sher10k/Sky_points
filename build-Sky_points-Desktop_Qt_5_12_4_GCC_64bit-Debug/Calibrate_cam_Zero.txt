@@ -10,3 +10,7 @@ distCoeffs: !!opencv-matrix
    cols: 5
    dt: d
    data: [ 0., 0., 0., 0., 0. ]
+rvecs:
+   []
+tvecs:
+   []
