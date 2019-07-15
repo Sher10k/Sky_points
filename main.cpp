@@ -43,13 +43,13 @@
 //#include <opencv2/sfm/robust.hpp>
 #include <opencv2/sfm/triangulation.hpp>
 
-/*#include <pcl/io/io.h>
+#include <pcl/io/io.h>
 #include <pcl/io/pcd_io.h>
 //#include <pcl/console/parse.h>
 //#include <pcl/features/normal_3d.h>
 //#include <pcl/common/common_headers.h>
 #include <pcl/visualization/pcl_visualizer.h>
-//#include <pcl/visualization/cloud_viewer.h>*/
+//#include <pcl/visualization/cloud_viewer.h>
 
 //#include <boost/thread/thread.hpp>
 
@@ -60,7 +60,7 @@ using namespace std;
 using namespace cv;
 using namespace cv::sfm;
 using namespace cv::xfeatures2d;
-//using namespace pcl;
+using namespace pcl;
 
 #define FRAME_WIDTH 640
 #define FRAME_HEIGHT 480
@@ -121,11 +121,17 @@ int main()
                                                     distCoeffs(0, 3)};*/
     
         // Cloud of points
-    /*pcl::PointCloud <pcl::PointXYZ> cloud;
+    //std::vector<pcl::visualization::Camera> camera; 
+    pcl::PointCloud <pcl::PointXYZ> cloud;
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud2 (new pcl::PointCloud<pcl::PointXYZ>);
     boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer (new pcl::visualization::PCLVisualizer ("3D Viewer"));
     viewer->setBackgroundColor(0, 0, 0);
-    viewer->addCoordinateSystem(50.0);*/
+    viewer->addCoordinateSystem(1.0);
+    // Evil functions
+    viewer->initCameraParameters();
+    viewer->setCameraPosition(5, 5, 5,    0, 0, 0,   0, 0, 1);
+    viewer->setCameraFieldOfView(0.523599);
+    viewer->setCameraClipDistances(0.00522511, 50);
     
         // Other variables
     int f = 2;              // Переключение в режим калибровки
@@ -133,6 +139,7 @@ int main()
     char nF = 1;
     int win = 3, vecS = 1;
     int click;
+    Matx33d K_1;
 
     
     //-------------------------------------- Initialize VIDEOCAPTURE ----------------------------//
@@ -211,11 +218,11 @@ int main()
                 else 
                 {
                     MySFM.detectKeypoints( &frame );
-                    MySFM.goodClear();
                     MySFM.matchKeypoints();
                     if (MySFM.numKeypoints > 7 )
                     {
-                        MySFM.fundametalMat();
+                        MySFM.homo_fundam_Mat(K_1);
+                        
                         MySFM.projectionsMat();
                         MySFM.triangulationPoints();
                         
@@ -224,7 +231,7 @@ int main()
                         
                         
                             // 3D points cloud
-                        /*//pcl::PointCloud <pcl::PointXYZ> cloud;
+                        //pcl::PointCloud <pcl::PointXYZ> cloud;
                         cloud.height = 1;
                         cloud.width = static_cast<unsigned int>( MySFM.points3D.cols );
                         cloud.is_dense = false;
@@ -243,7 +250,15 @@ int main()
                         pcl::io::savePCDFileASCII ("Reconstruct_cloud.pcd", cloud);
                             // Load 3D points (cloud points)
                         //pcl::PointCloud<pcl::PointXYZ>::Ptr cloud2 (new pcl::PointCloud<pcl::PointXYZ>);
-                        pcl::io::loadPCDFile("Reconstruct_cloud.pcd", *cloud2);*/
+                        pcl::io::loadPCDFile("Reconstruct_cloud.pcd", *cloud2);
+                        
+                        /*viewer->getCameras(camera);
+                        //Print recorded points on the screen: 
+                        cout << "camera: " << endl 
+                             << " - pos: ("	<< camera[0].pos[0] << ", "	<< camera[0].pos[1] << ", "	<< camera[0].pos[2] << ")"	<< endl 
+                             << " - view: ("	<< camera[0].view[0] << ", "	<< camera[0].view[1] << ", "	<< camera[0].view[2] << ")"	<< endl 
+                             << " - focal: ("	<< camera[0].focal[0] << ", "	<< camera[0].focal[1] << ", "	<< camera[0].focal[2] << ")"	<< endl;	
+                        */
                             // View cloud points
                         /*pcl::visualization::CloudViewer viewer("Cloud Viewer");
                         viewer.showCloud(cloud2, "cloud");*/
@@ -273,17 +288,17 @@ int main()
                 destroyWindow("1-2 frame");
             }
             
-            /*if (cloud.size() != 0) {        // View cloud points
+            if (cloud.size() != 0) {        // View cloud points
                     // Clear the view
                 viewer->removeAllShapes();
                 viewer->removeAllPointClouds();
                 viewer->addPointCloud<pcl::PointXYZ>(cloud2, "sample cloud", 0);
                 viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1, "sample cloud");
                 viewer->spinOnce (5);
-            }*/
+            }
             
             
-            if ( !frameCache.empty() )
+            /*if ( !frameCache.empty() )
             {
                 if ( (button_nf == 43) || (button_nf == 61) )  
                 {
@@ -305,12 +320,13 @@ int main()
                 }
                 MySFM.opticalFlow(&frame, &frameCache, win, 1);
                 imshow("OpticalFlow", MySFM.img2Original);
-            }
+            }*/
             frame.copyTo(frameCache);
         }                                   
         else if ( f == 2 ) {                            // Калибровка камеры  press "с" or "C"----------------------//      step 0
             Calib.calibratCamera(8, 6, 10);
             Calib.printParam();
+            invert(Calib.cameraMatrix, K_1, DECOMP_LU);
             f = 1;
         }                                               // END Калибровка камеры  ----------------------------------//   END step 0
 
@@ -331,7 +347,10 @@ int main()
         } else if ( (click == 70) || (click == 102) ) {         // Output fundamental_matrix into file, press "f" & "F"
             FileStorage fundam;
             fundam.open("Fundamental_matrix.txt", FileStorage::WRITE);
+            fundam << "homography_matrix" << MySFM.retval;
+            fundam << "homography_mask" << MySFM.homo_mask;
             fundam << "fundamental_matrix" << MySFM.F;
+            fundam << "fundamental_mask" << MySFM.Fundam_mask;
             fundam.release();
             cout << " --- Fundamental matrix written into file: Fundamental_matrix.txt" << endl << endl;
         } else if ( (click == 76) || (click == 108) ) {         // Output flow into file, press "l" & "L"

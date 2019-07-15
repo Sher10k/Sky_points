@@ -32,8 +32,17 @@ void SFM_Reconstruction::detectKeypoints(cv::Mat *frame)
     detectorSIFT->detectAndCompute(frame1, cv::noArray(), keypoints1_SIFT, descriptors1_SIFT);
 }
 
+void SFM_Reconstruction::goodClear()
+{
+    good_matches.clear();
+    good_points1.clear();
+    good_points2.clear();
+}
+
 void SFM_Reconstruction::matchKeypoints()
 {
+    goodClear();
+    
     if ((keypoints1_SIFT.size() != 0) && (keypoints2_SIFT.size() != 0))
     {
         numKeypoints = Match_find_SIFT(keypoints1_SIFT,
@@ -50,29 +59,7 @@ void SFM_Reconstruction::matchKeypoints()
         cv::KeyPoint::convert(good_points1, points1);     // Convert from KeyPoint to Point2f
         cv::KeyPoint::convert(good_points2, points2);
         
-        pointsMass.clear();
-        pointsMass.resize(2);
-        pointsMass[0] = cv::Mat(2, static_cast<int>(numKeypoints), CV_64F);
-        pointsMass[1] = cv::Mat(2, static_cast<int>(numKeypoints), CV_64F);
-        for (int i = 0; i < static_cast<int>(numKeypoints); i++) {         // Unioning the key points in new variable
-            pointsMass[0].at<float>(0, i) = points1[static_cast<unsigned long>(i)].x;
-            pointsMass[0].at<float>(1, i) = points1[static_cast<unsigned long>(i)].y;
-            pointsMass[1].at<float>(0, i) = points2[static_cast<unsigned long>(i)].x;
-            pointsMass[1].at<float>(1, i) = points2[static_cast<unsigned long>(i)].y;
-            /*cout    << "points2frame [0](0, " << i << ") = " << points2frame[0].at<float>(0, i) << endl
-                    << "points2frame [0](1, " << i << ") = " << points2frame[0].at<float>(1, i) << endl
-                    << "points2frame [1](0, " << i << ") = " << points2frame[1].at<float>(0, i) << endl
-                    << "points2frame [1](1, " << i << ") = " << points2frame[1].at<float>(1, i) << endl
-                    << endl;*/
-        }
     }
-}
-
-void SFM_Reconstruction::goodClear()
-{
-    good_matches.clear();
-    good_points1.clear();
-    good_points2.clear();
 }
 
 // SIFT Find matches between points
@@ -128,15 +115,68 @@ unsigned long SFM_Reconstruction::Match_find_SIFT(vector<cv::KeyPoint> kpf1,
             temp++;
         }
     }
+    /*for (size_t i = 0; i < matches.size(); i++)
+    {
+        for (size_t j = 0; j < matches.size(); j++) 
+        {
+            if (matches[i].distance < 0.1f * matches[j].distance) 
+            {
+                gm->push_back(matches[i]);
+                gp1->push_back( kpf1[ static_cast<unsigned long>( matches[i].queryIdx ) ] );    // queryIdx
+                gp2->push_back( kpf2[ static_cast<unsigned long>( matches[i].trainIdx ) ] );    // trainIdx
+                temp ++;
+            }
+        }
+    }*/
+    
     cout << "-- Temp : " << temp << endl << endl;
     return temp;
 }
 
-void SFM_Reconstruction::fundametalMat()
+void SFM_Reconstruction::homo_fundam_Mat(Matx33d K_1)  //--------------------------------------------- DEBUG -----!!!!!!!!!!!
 {
     if (numKeypoints > 7 )
     {
-        F = cv::findFundamentalMat(points1, points2, cv::FM_RANSAC, 1.0, 0.99, cv::noArray());
+        cout << "numKeypoints before homo_mask = " << numKeypoints << endl;
+        numKeypoints = 0;
+        retval = findHomography(points1, points2, RANSAC, 100, homo_mask);
+        F = findFundamentalMat(points1, points2, FM_RANSAC, 1.0, 0.99, Fundam_mask);
+        for (int i = 0; i < homo_mask.rows; i++)
+        {
+            if  (homo_mask.at<uchar>(i) == 0)
+            {
+                points1.erase(points1.begin() + i);
+                points2.erase(points2.begin() + i);
+            } 
+            else numKeypoints++;
+        }
+        
+        convertPointsToHomogeneous(points1, points1H);
+        convertPointsToHomogeneous(points2, points2H);
+        /*float X = 0, Y = 0, W = 0;
+        for (int n = 0; n < points1H.rows; n++)
+        {
+            for (int i = 0; i < 3; i++)
+            {
+                for (int j = 0; j < 3; j++)
+                {
+                    X += static_cast<float>(K_1(i ,j)) * points1H.at<float>(n, 0);
+                }
+            }
+        }*/
+        
+        cout << "numKeypoints after homo_mask = " << numKeypoints << endl;
+        FileStorage fundam;
+        fundam.open("Fundamental_matrix.txt", FileStorage::WRITE);
+        fundam << "homography_matrix" << retval;
+        fundam << "homography_mask" << homo_mask;
+        fundam << "fundamental_matrix" << F;
+        fundam << "fundamental_mask" << Fundam_mask;
+        fundam << "K-1" << K_1;
+        fundam << "points1H" << points1H;
+        fundam << "points2H" << points2H;
+        fundam.release();
+        cout << " --- Fundamental matrix written into file: Fundamental_matrix.txt" << endl << endl;
         
     } else {
         CV_Error(cv::Error::StsOutOfRange, "Not enough keypoints");
@@ -162,14 +202,30 @@ void SFM_Reconstruction::projectionsMat()
 
 void SFM_Reconstruction::triangulationPoints()
 {
+    pointsMass.clear();
+    pointsMass.resize(2);
+    pointsMass[0] = cv::Mat(2, static_cast<int>(numKeypoints), CV_64F);
+    pointsMass[1] = cv::Mat(2, static_cast<int>(numKeypoints), CV_64F);
+    for (int i = 0; i < static_cast<int>(numKeypoints); i++) {         // Unioning the key points in new variable
+        pointsMass[0].at<float>(0, i) = points1[static_cast<unsigned long>(i)].x;
+        pointsMass[0].at<float>(1, i) = points1[static_cast<unsigned long>(i)].y;
+        pointsMass[1].at<float>(0, i) = points2[static_cast<unsigned long>(i)].x;
+        pointsMass[1].at<float>(1, i) = points2[static_cast<unsigned long>(i)].y;
+        /*cout    << "points2frame [0](0, " << i << ") = " << points2frame[0].at<float>(0, i) << endl
+                << "points2frame [0](1, " << i << ") = " << points2frame[0].at<float>(1, i) << endl
+                << "points2frame [1](0, " << i << ") = " << points2frame[1].at<float>(0, i) << endl
+                << "points2frame [1](1, " << i << ") = " << points2frame[1].at<float>(1, i) << endl
+                << endl;*/
+    }
+    
     cv::sfm::triangulatePoints(pointsMass, Proj, points3D);
     
-    for (int i = 0; i < points3D.cols; i++){
+    /*for (int i = 0; i < points3D.cols; i++){
         for (int j = 0; j < points3D.rows; j++){
             cout << " " << points3D.at<double>(i, j) << " ";
         }
         cout << endl;
-    }
+    }*/
     cv::FileStorage poins3D;      // Вывод в файл 3д точек
     poins3D.open("poins3D_XYZ.txt", cv::FileStorage::WRITE);
     poins3D << "points3D" << points3D;
