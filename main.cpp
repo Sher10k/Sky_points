@@ -126,7 +126,8 @@ int main()
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud2 (new pcl::PointCloud<pcl::PointXYZ>);
     boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer (new pcl::visualization::PCLVisualizer ("3D Viewer"));
     viewer->setBackgroundColor(0, 0, 0);
-    viewer->addCoordinateSystem(1.0);
+    viewer->addCoordinateSystem(1.0, "global");
+    viewer->setSize(10, 10);
     // Evil functions
     viewer->initCameraParameters();
     viewer->setCameraPosition(5, 5, 5,    0, 0, 0,   0, 0, 1);
@@ -140,6 +141,7 @@ int main()
     int win = 3, vecS = 1;
     int click;
     Matx33d K_1;
+    char cloud_flag = 0;
 
     
     //-------------------------------------- Initialize VIDEOCAPTURE ----------------------------//
@@ -210,6 +212,9 @@ int main()
             int button_nf = waitKey(1);
             if ( button_nf == 32 )             // If press "space"
             {
+                //viewer->removeAllShapes();
+                //viewer->removeAllPointClouds();
+                
                 if (nF == 1)
                 {
                     MySFM.detectKeypoints( &frame );
@@ -221,7 +226,7 @@ int main()
                     MySFM.matchKeypoints();
                     if (MySFM.numKeypoints > 7 )
                     {
-                        MySFM.homo_fundam_Mat(K_1);
+                        MySFM.homo_fundam_Mat(Calib.cameraMatrix, K_1);
                         
                         MySFM.projectionsMat();
                         MySFM.triangulationPoints();
@@ -239,18 +244,44 @@ int main()
                         
                         for (size_t i = 0; i < cloud.points.size (); ++i)
                         {
-                            cloud.points[i].x = MySFM.points3D.at<float>(0, static_cast<int>(i));
-                            cloud.points[i].y = MySFM.points3D.at<float>(1, static_cast<int>(i));
-                            cloud.points[i].z = MySFM.points3D.at<float>(2, static_cast<int>(i));
-                            //cloud.points[i].r = rgb_cenal[2].at(i);
-                            //cloud.points[i].g = rgb_cenal[1].at(i);
-                            //cloud.points[i].b = rgb_cenal[0].at(i);
+                            if ((MySFM.points3D.at<float>(0, static_cast<int>(i)) < 2000) && 
+                                (MySFM.points3D.at<float>(1, static_cast<int>(i)) < 2000) && 
+                                (MySFM.points3D.at<float>(2, static_cast<int>(i)) < 2000) && 
+                                (MySFM.points3D.at<float>(0, static_cast<int>(i)) > -2000) && 
+                                (MySFM.points3D.at<float>(1, static_cast<int>(i)) > -2000) && 
+                                (MySFM.points3D.at<float>(2, static_cast<int>(i)) > -2000))
+                            {
+                                cloud.points[i].x = MySFM.points3D.at<float>(0, static_cast<int>(i));
+                                cloud.points[i].y = MySFM.points3D.at<float>(1, static_cast<int>(i));
+                                cloud.points[i].z = MySFM.points3D.at<float>(2, static_cast<int>(i));
+                                //cloud.points[i].r = rgb_cenal[2].at(i);
+                                //cloud.points[i].g = rgb_cenal[1].at(i);
+                                //cloud.points[i].b = rgb_cenal[0].at(i);
+                            }
+                            else 
+                            {
+                                cloud.points[i].x = 0;
+                                cloud.points[i].y = 0;
+                                cloud.points[i].z = 0;
+                            }
                         }
                             // Save 3D points in file
                         pcl::io::savePCDFileASCII ("Reconstruct_cloud.pcd", cloud);
                             // Load 3D points (cloud points)
                         //pcl::PointCloud<pcl::PointXYZ>::Ptr cloud2 (new pcl::PointCloud<pcl::PointXYZ>);
-                        pcl::io::loadPCDFile("Reconstruct_cloud.pcd", *cloud2);
+                        pcl::io::loadPCDFile("Reconstruct_cloud.pcd", *cloud2);  // test_pcd.pcd
+                        
+                        string str = "sample cloud";
+                        str += cloud_flag;
+                        
+                        viewer->addPointCloud<pcl::PointXYZ>(cloud2, str, 0);
+                        viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 5, str);                        
+                        cloud_flag++;
+                        
+                        /*viewer->updatePointCloud<pcl::PointXYZ>(cloud2, "sample cloud");
+                        pcl::io::loadPCDFile("test_pcd.pcd", *cloud2);  // test_pcd.pcd
+                        viewer->addPointCloud<pcl::PointXYZ>(cloud2, "sample cloud", 0);*/
+                        
                         
                         /*viewer->getCameras(camera);
                         //Print recorded points on the screen: 
@@ -290,10 +321,10 @@ int main()
             
             if (cloud.size() != 0) {        // View cloud points
                     // Clear the view
-                viewer->removeAllShapes();
-                viewer->removeAllPointClouds();
-                viewer->addPointCloud<pcl::PointXYZ>(cloud2, "sample cloud", 0);
-                viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1, "sample cloud");
+//                viewer->removeAllShapes();
+//                viewer->removeAllPointClouds();
+//                viewer->addPointCloud<pcl::PointXYZ>(cloud2, "sample cloud", 0);
+//                viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1, "sample cloud");
                 viewer->spinOnce (5);
             }
             

@@ -68,6 +68,11 @@ public:
         // Fundamental matrix
     Mat F = Mat( 3, 3, CV_32FC1 );
     Mat Fundam_mask;
+
+        // Essential matrix
+    Mat E = Mat( 3, 3, CV_32FC1);
+    Mat Essen_mask;
+    Mat R1, R2, t;
     
         // Projection matrices for each camera
     cv::Mat Pt1 = cv::Mat::eye(3, 4, CV_64F);
@@ -89,7 +94,7 @@ public:
     void detectKeypoints(cv::Mat *);
     void goodClear();
     void matchKeypoints();
-    void homo_fundam_Mat(Matx33d);
+    void homo_fundam_Mat(Matx33d, Matx33d);
     void projectionsMat();
     void triangulationPoints();
     void opticalFlow(Mat *, Mat *, int, int);
