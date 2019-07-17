@@ -138,7 +138,7 @@ int main()
     int f = 2;              // Переключение в режим калибровки
     Mat frame4 = Mat::zeros(Size(2 * frame.cols, frame.rows), CV_8UC3);
     char nF = 1;
-    int win = 3, vecS = 1;
+    //int win = 3, vecS = 1;
     int click;
     Matx33d K_1;
     char cloud_flag = 0;
@@ -355,7 +355,8 @@ int main()
             frame.copyTo(frameCache);
         }                                   
         else if ( f == 2 ) {                            // Калибровка камеры  press "с" or "C"----------------------//      step 0
-            Calib.calibratCamera(8, 6, 10);
+            //Calib.calibrCameraChess(10, 7, 10);    // 8, 6
+            Calib.calibrCameraChArUco(11, 8, 10, 7, 10, 10);
             Calib.printParam();
             invert(Calib.cameraMatrix, K_1, DECOMP_LU);
             f = 1;
