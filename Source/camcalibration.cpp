@@ -121,13 +121,13 @@ void CalibrationCamera::calibrCameraChess(int _numCornersHor,
             break;
         }
         CAP.read(frame3);
-            putText( frame3, 
-                     "Press 'c' to add current frame. 'ESC' to finish and calibrate Chess_board",
-                     Point(5, 20), 
-                     FONT_HERSHEY_SIMPLEX, 
-                     0.5, 
-                     Scalar(255, 0, 0), 
-                     2);
+        putText( frame3, 
+                 "Press 'c' to add current frame. 'ESC' to finish and calibrate Chess_board",
+                 Point(5, 20), 
+                 FONT_HERSHEY_SIMPLEX, 
+                 0.5, 
+                 Scalar(255, 0, 0), 
+                 2);
         cv::Rect r1(0, 0, frame3.cols, frame3.rows);                // Создаем фрагменты для склеивания зображения
         cv::Rect r2(frame3.cols, 0, frame3.cols, frame3.rows);
         frame3.copyTo(frame4( r1 ));

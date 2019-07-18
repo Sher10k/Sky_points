@@ -31,13 +31,15 @@ class SFM_Reconstruction
 {
 private:
     
-    unsigned long Match_find_SIFT(vector<cv::KeyPoint>,
-                                  vector<cv::KeyPoint>,
-                                  cv::Mat,
-                                  cv::Mat,
-                                  vector<cv::KeyPoint> *,
-                                  vector<cv::KeyPoint> *,
-                                  vector<cv::DMatch> *);
+    unsigned long Match_find_SIFT( vector< KeyPoint >,
+                                   vector< KeyPoint >,
+                                   Mat,
+                                   Mat,
+                                   vector< KeyPoint > *,
+                                   vector< KeyPoint > *,
+                                   vector< DMatch > *);
+    void drawKeyPoints( Mat *, 
+                        vector< KeyPoint > *);
     
 public:
     
@@ -51,14 +53,22 @@ public:
     //Ptr<FeatureDetector> detector = ORB::create(static_cast<int>(key_num), 1.2f, 8, 31, 0, 4, ORB::HARRIS_SCORE, 31);   // HARRIS_SCORE, FAST_SCORE
     //Ptr<SURF> detectorSURF = cv::xfeatures2d::SURF::create(static_cast<double>(key_num), 4, 3, true, false);   // cv::xfeatures2d::
     //Ptr<SURF> detectorSURF = cv::xfeatures2d::SURF::create(100);
-    cv::Ptr<SIFT> detectorSIFT = cv::xfeatures2d::SIFT::create();       // 0, 4, 0.04, 10, 1.6
-    vector<cv::KeyPoint> keypoints1_SIFT, keypoints2_SIFT;              // Key points
-    cv::Mat descriptors1_SIFT, descriptors2_SIFT;                       // Descriptors key points
+    Ptr< SIFT > detectorSIFT = xfeatures2d::SIFT::create();             // 0, 4, 0.04, 10, 1.6
+    vector< KeyPoint > keypoints1_SIFT, keypoints2_SIFT;                // Key points
+    Mat descriptors1_SIFT, descriptors2_SIFT;                           // Descriptors key points
     unsigned long numKeypoints;                                         // Number key points
-    vector<cv::DMatch> good_matches;                                    // Good matches between frames
-    vector<cv::KeyPoint> good_points1, good_points2;                    // Good points satisfying the threshold
-    vector<cv::Point2f> points1, points2;                               // KeyPoints -> Points(x, y)
-    vector<cv::Mat> pointsMass;                                         // Array points both frames
+    vector< DMatch > good_matches;                                      // Good matches between frames
+    vector< KeyPoint > good_points1, good_points2;                      // Good points satisfying the threshold
+    vector< Point2f > points1, points2;                                 // KeyPoints -> Points(x, y)
+    vector< Mat > pointsMass;                                           // Array points both frames
+    
+        // Essential matrix
+    Mat E = Mat( 3, 3, CV_32FC1);
+    Mat Essen_mask;
+    Mat R, R1, R2, t;
+    
+    
+    
     Mat points1H, points2H;
     
         // Homography
@@ -68,11 +78,6 @@ public:
         // Fundamental matrix
     Mat F = Mat( 3, 3, CV_32FC1 );
     Mat Fundam_mask;
-
-        // Essential matrix
-    Mat E = Mat( 3, 3, CV_32FC1);
-    Mat Essen_mask;
-    Mat R1, R2, t;
     
         // Projection matrices for each camera
     cv::Mat Pt1 = cv::Mat::eye(3, 4, CV_64F);
@@ -81,15 +86,34 @@ public:
 //    Ps[0] = cv::Mat(3, 4, CV_64F);
 //    Ps[1] = cv::Mat(3, 4, CV_64F);
     
+        // Epipolar linu
+    std::vector<cv::Point3f> lines[2];
+    Mat frame_epipol1, frame_epipol2;
+    
         // 3D points
-    cv::Mat points3D;
+    Mat points3D;
     
         // Optical flow
     Mat flow, frameGREY, frameCacheGREY, img2Original;
     
-    
+        // SFM camera
+
+    /*cv::sfm::libmv_CameraIntrinsicsOptions camera { SFM_DISTORTION_MODEL_DIVISION, 
+                                                    intrinsic(0, 0), 
+                                                    intrinsic(1, 1), 
+                                                    intrinsic(0, 2), 
+                                                    intrinsic(1, 2),
+                                                    distCoeffs(0, 0),
+                                                    distCoeffs(0, 1),
+                                                    distCoeffs(0, 4),
+                                                    distCoeffs(0, 2),
+                                                    distCoeffs(0, 3) };*/
+
     SFM_Reconstruction(cv::VideoCapture *);
     void setParam(cv::VideoCapture *);
+    void Reconstruction3D(Mat *, Mat *, Matx33d);    // Put old frame then new frame and K matrix
+    void destroyWinSFM();
+    
     void f1Tof2();
     void detectKeypoints(cv::Mat *);
     void goodClear();
