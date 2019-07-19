@@ -65,11 +65,139 @@ using namespace pcl;
 #define FRAME_WIDTH 640
 #define FRAME_HEIGHT 480
 
+void RtxRt(Mat *dR1, Mat *dt1, Mat *dR2, Mat *dt2)
+{
+// --- Temporary matrices ---------------------------------------------------//
+    Mat tempRt1 = Mat::zeros(4, 4, CV_64F);
+    tempRt1.at< double >(3, 3) = 1;
+    Mat tempRt2 = Mat::zeros(4, 4, CV_64F);
+    tempRt2.at< double >(3, 3) = 1;
+    Mat ResultRt = Mat::zeros(4, 4, CV_64F);
+    for (int i = 0; i < 3; i++) 
+    {
+        for (int j = 0; j < 3; j++)
+        {
+            tempRt1.at< double >(i, j) = dR1->at<double>(i, j);
+            tempRt2.at< double >(i, j) = dR2->at< double >(i, j);
+        }
+    }
+    for (int i = 0; i < 3; i++) 
+    {
+        tempRt1.at< double >(i, 3) = dt1->at< double >(i, 0);
+        tempRt2.at< double >(i, 3) = dt2->at< double >(i, 0);
+    }
+    cout << "TempRt1 = " << endl;
+    for (int i = 0; i < tempRt1.rows; i++)
+    {
+        for (int j = 0; j < tempRt1.cols; j++)
+            cout << " " << tempRt1.at< double >(i, j) << "\t\t";
+        cout << endl;
+    }
+    cout << "TempRt2 = " << endl;
+    for (int i = 0; i < tempRt2.rows; i++)
+    {
+        for (int j = 0; j < tempRt2.cols; j++)
+            cout << " " << tempRt2.at< double >(i, j) << "\t\t";
+        cout << endl;
+    }
+    
+// --- Multiplication matrix ------------------------------------------------//
+    for (int i = 0; i < 4; i++) 
+    {
+        for (int j = 0; j < 4; j++)
+        {
+            ResultRt.at< double >(i, j) = (tempRt1.at< double >(i, 0)) * (tempRt2.at< double >(0, j)) + 
+                                          (tempRt1.at< double >(i, 1)) * (tempRt2.at< double >(1, j)) + 
+                                          (tempRt1.at< double >(i, 2)) * (tempRt2.at< double >(2, j)) +
+                                          (tempRt1.at< double >(i, 3)) * (tempRt2.at< double >(3, j));
+        }
+    }
+    for (int i = 0; i < 3; i++) 
+    {
+        for (int j = 0; j < 3; j++)
+        {
+            dR1[0].at< double >(i, j) = ResultRt.at< double >(i, j);
+        }
+    }
+    for (int i = 0; i < 3; i++) 
+    {
+        dt1[0].at< double >(i, 0) = ResultRt.at< double >(i, 3);
+    }
+// --- Print matrix ---------------------------------------------------------//
+    cout << "ResultRt = " << endl;
+    for (int i = 0; i < ResultRt.rows; i++)
+    {
+        for (int j = 0; j < ResultRt.cols; j++)
+            cout << " " << ResultRt.at< double >(i, j) << "\t\t";
+        cout << endl;
+    }
+//    cout << "R1 = " << endl;
+//    for (int i = 0; i < dR1->rows; i++)
+//    {
+//        for (int j = 0; j < dR1->cols; j++)
+//            cout << " " << dR1->at< double >(i, j) << "\t\t";
+//        cout << endl;
+//    }
+//    cout << "t1 = " << endl;
+//    for (int i = 0; i < dt1->rows; i++)
+//    {
+//        for (int j = 0; j < dt1->cols; j++)
+//            cout << " " << dt1->at< double >(i, j) << "\t\t";
+//        cout << endl;
+//    }
+}
+
+void RtxXYZ(Mat *dR, Mat *dt, Mat *p3d)
+{
+    Mat tempRt = Mat::zeros(4, 4, CV_64F);
+    tempRt.at< double >(3, 3) = 1;
+    for (int i = 0; i < 3; i++) 
+    {
+        for (int j = 0; j < 3; j++)
+        {
+            tempRt.at< double >(i, j) = dR->at<double>(i, j);
+        }
+    }
+    for (int i = 0; i < 3; i++) 
+    {
+        tempRt.at< double >(i, 3) = dt->at< double >(i, 0);
+    }
+    for (int n = 0; n < p3d->cols; n++) 
+    {
+        for (int i = 0; i < 4; i++) 
+        {
+            p3d->at< double >(i, n) = (tempRt.at< double >(i, 0)) * (p3d->at< double >(0, n)) + 
+                                      (tempRt.at< double >(i, 1)) * (p3d->at< double >(1, n)) + 
+                                      (tempRt.at< double >(i, 2)) * (p3d->at< double >(2, n)) +
+                                      (tempRt.at< double >(i, 3)) * (p3d->at< double >(3, n));
+        }
+    }
+//    for (int i = 0; i < p3d->cols; i++)
+//    {
+//        cout << "3Dpoint[ " << i << " ] =";
+//        for (int j = 0; j < p3d->rows; j++){
+//            cout << " " << p3d->at<double>(j, i) << " ";
+//        }
+//        cout << endl;
+//    }
+}
 
 int main()
 {
     //-------------------------------------- VARIABLES ------------------------------------------//
     Mat frameRAW, frame, frameCache;
+    
+        // Camera position matrix
+    double dataR[9] = { 1, 0, 0, 
+                        0, 1, 0, 
+                        0, 0, 1 };
+    vector< Mat > Rotation(2);
+    Rotation[0] = Mat(3, 3, CV_64F, dataR);
+    Rotation[1] = Mat(3, 3, CV_64F, dataR);
+    double datat[3] = { 0, 0, 0 };
+    vector< Mat > translation(2);
+    translation[0] = Mat(3, 1, CV_64F, datat);
+    translation[1] = Mat(3, 1, CV_64F, datat);
     
         // Cloud of points
     //std::vector<pcl::visualization::Camera> camera; 
@@ -82,8 +210,8 @@ int main()
     // Evil functions
     viewer->initCameraParameters();
     viewer->setCameraPosition(5, 5, 5,    0, 0, 0,   0, 0, 1);
-    viewer->setCameraFieldOfView(0.523599);
-    viewer->setCameraClipDistances(0.00522511, 1);
+    viewer->setCameraFieldOfView(0.523599); // 0.523599
+    viewer->setCameraClipDistances(0, 100);
     char cloud_flag = 0;
     
         // Other variables
@@ -155,28 +283,45 @@ int main()
             undistort(frameRAW, frame, Calib.cameraMatrix, Calib.distCoeffs);
             imshow("Real time", frame);
             
-                // Вывод предыдущего и текущего кадров вместе
-            /*Rect r1(0, 0, frame.cols, frame.rows);
-            Rect r2(frame2.cols, 0, frame2.cols, frame2.rows);
-            frame.copyTo(frame4( r1 ));
-            frame2.copyTo(frame4( r2 ));
-            imshow("1-2 frame",frame4);*/
-            
             int button_nf = waitKey(1);
             if ( button_nf == 32 )             // If press "space"
             {
                 MySFM.Reconstruction3D(&frameCache, &frame, Calib.cameraMatrix);    // Put old frame then new frame
+                if (!MySFM.R.empty() && !MySFM.t.empty())
+                {
+                    RtxRt(&Rotation[0], &translation[0], &MySFM.R, &MySFM.t);
+                }
                 
                 if (!MySFM.points3D.empty())
                 {
+                    RtxXYZ(&Rotation[1], &translation[1], &MySFM.points3D);
+                    for (int i = 0; i < 3; i++) 
+                    {
+                        for (int j = 0; j < 3; j++)
+                        {
+                            Rotation[1].at< double >(i, j) = Rotation[0].at<double>(i, j);
+                        }
+                    }
+                    for (int i = 0; i < 3; i++) 
+                    {
+                        translation[1].at< double >(i, 3) = translation[0].at< double >(i, 0);
+                    }
+                    for (int i = 0; i < MySFM.points3D.cols; i++)
+                    {
+                        //cout << "3Dpoint[ " << i << " ] =";
+                        for (int j = 0; j < MySFM.points3D.rows; j++){
+                            MySFM.points3D.at<double>(j, i) /= MySFM.points3D.at<double>(3, i);
+                            //cout << " " << points3D.at<double>(j, i) << " ";
+                        }
+                        //cout << endl;
+                    }
+                    
                         // 3D points cloud
                     cloud.height = 1;
                     cloud.width = static_cast<unsigned int>( MySFM.points3D.cols );
                     cloud.is_dense = false;
                     cloud.points.resize( cloud.width * cloud.height );
                     
-//                    double X = 0, Y = 0, Z = 0, W = 0;
-//                    float X1 = 5, Y1 = 7, Z1 = 13;
                     for (size_t i = 0; i < cloud.points.size (); ++i)
                     {
                         cloud.points[i].x = (float)MySFM.points3D.at<double>(0, static_cast<int>(i));
@@ -264,22 +409,6 @@ int main()
             namedWindow("Real time", WINDOW_AUTOSIZE);
             destroyWindow("Real time");
             MySFM.destroyWinSFM();
-            namedWindow("OpticalFlow", WINDOW_AUTOSIZE);
-            destroyWindow("OpticalFlow");
-        } else if ( (click == 70) || (click == 102) ) {         // Output fundamental_matrix into file, press "f" & "F"
-            FileStorage fundam;
-            fundam.open("Fundamental_matrix.txt", FileStorage::WRITE);
-            fundam << "homography_matrix" << MySFM.retval;
-            fundam << "homography_mask" << MySFM.homo_mask;
-            fundam << "fundamental_matrix" << MySFM.F;
-            fundam << "fundamental_mask" << MySFM.Fundam_mask;
-            fundam.release();
-            cout << " --- Fundamental matrix written into file: Fundamental_matrix.txt" << endl << endl;
-        } else if ( (click == 76) || (click == 108) ) {         // Output flow into file, press "l" & "L"
-            FileStorage FLOW;
-            FLOW.open("FLOW_frame.txt", FileStorage::WRITE);
-            FLOW << "flow" << MySFM.flow;
-            FLOW.release();
         }
         //------------------------------------ END MENU -----------------------------------------//
     }
@@ -288,3 +417,5 @@ int main()
     cap.release();
     return 0;
 }
+
+

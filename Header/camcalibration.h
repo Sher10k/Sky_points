@@ -22,15 +22,15 @@ private:
     
 public:
     
-    cv::VideoCapture CAP;
-    cv::Matx33d cameraMatrix;           //= Matx33d( 10,     0,  FRAME_WIDTH/2, 0,     10,  FRAME_HEIGHT/2, 0,     0,  1);
-    cv::Matx<double, 1, 5> distCoeffs;  //= Matx<double, 1, 5>(0.0, 0.0, 0.0, 0.0, 0.0);  // (k1, k2, p1, p2, k3)
-    std::vector<cv::Mat> rvecs, tvecs;
+    VideoCapture CAP;
+    Matx33d cameraMatrix;           //= Matx33d( 10,     0,  FRAME_WIDTH/2, 0,     10,  FRAME_HEIGHT/2, 0,     0,  1);
+    Matx<double, 1, 5> distCoeffs;  //= Matx<double, 1, 5>(0.0, 0.0, 0.0, 0.0, 0.0);  // (k1, k2, p1, p2, k3)
+    vector<Mat> rvecs, tvecs;
     int calibrationFlags;
     int width_frame, height_frame;
     
-    CalibrationCamera(cv::VideoCapture *);
-    void setParam(cv::VideoCapture *);
+    CalibrationCamera(VideoCapture *);
+    void setParam(VideoCapture *);
     void printParam();
     void calibrCameraChess( int numCornersHor,                 // Кол-во углов по вертикале и горизонтале для метода ChArUco и на 1 меньше чем кол-во 
                             int numCornersVer,                 // квадратов по вертикале и горизонтале, для метода калибровки по chessboard

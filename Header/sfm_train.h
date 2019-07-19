@@ -65,30 +65,7 @@ public:
         // Essential matrix
     Mat E = Mat( 3, 3, CV_32FC1);
     Mat Essen_mask;
-    Mat R, R1, R2, t;
-    
-    
-    
-    Mat points1H, points2H;
-    
-        // Homography
-    Mat retval = Mat( 3, 3, CV_32FC1 );
-    Mat homo_mask;
-    
-        // Fundamental matrix
-    Mat F = Mat( 3, 3, CV_32FC1 );
-    Mat Fundam_mask;
-    
-        // Projection matrices for each camera
-    cv::Mat Pt1 = cv::Mat::eye(3, 4, CV_64F);
-    cv::Mat Pt2 = cv::Mat::eye(3, 4, CV_64F);
-    vector<cv::Mat> Proj;             // Matx34d  // Vector of projection matrices for each camera
-//    Ps[0] = cv::Mat(3, 4, CV_64F);
-//    Ps[1] = cv::Mat(3, 4, CV_64F);
-    
-        // Epipolar linu
-    std::vector<cv::Point3f> lines[2];
-    Mat frame_epipol1, frame_epipol2;
+    Mat R, t;
     
         // 3D points
     Mat points3D;
@@ -97,7 +74,6 @@ public:
     Mat flow, frameGREY, frameCacheGREY, img2Original;
     
         // SFM camera
-
     /*cv::sfm::libmv_CameraIntrinsicsOptions camera { SFM_DISTORTION_MODEL_DIVISION, 
                                                     intrinsic(0, 0), 
                                                     intrinsic(1, 1), 
@@ -109,19 +85,11 @@ public:
                                                     distCoeffs(0, 2),
                                                     distCoeffs(0, 3) };*/
 
-    SFM_Reconstruction(cv::VideoCapture *);
-    void setParam(cv::VideoCapture *);
+    SFM_Reconstruction(VideoCapture *);
+    void setParam(VideoCapture *);
     void Reconstruction3D(Mat *, Mat *, Matx33d);    // Put old frame then new frame and K matrix
-    void destroyWinSFM();
-    
-    void f1Tof2();
-    void detectKeypoints(cv::Mat *);
-    void goodClear();
-    void matchKeypoints();
-    void homo_fundam_Mat(Matx33d, Matx33d);
-    void projectionsMat();
-    void triangulationPoints();
     void opticalFlow(Mat *, Mat *, int, int);
+    void destroyWinSFM();
     
 };
 
