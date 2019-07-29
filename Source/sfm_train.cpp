@@ -16,12 +16,14 @@ void SFM_Reconstruction::setParam(VideoCapture *data_CAP)
     frame1 = Mat::zeros(Size(width_frame, height_frame), CV_8UC3);
     frame2 = Mat::zeros(Size(width_frame, height_frame), CV_8UC3);
     frame4 = Mat::zeros(Size(2 * width_frame, height_frame), CV_8UC3);
+//    points3D_BGR = Mat::zeros(Size(width_frame, height_frame), CV_8UC3);
     numKeypoints = 0;
 }
 
 void SFM_Reconstruction::Reconstruction3D(Mat *data_frame1, Mat *data_frame2, Matx33d K)
 {
     points3D *= 0;
+    points3D_RGB->clear();
     R *= 0;
     t *= 0;
 //--- STEP 1 --- Detection and calculation
@@ -114,13 +116,103 @@ void SFM_Reconstruction::Reconstruction3D(Mat *data_frame1, Mat *data_frame2, Ma
     }
 }
 
+void SFM_Reconstruction::Reconstruction3DopticFlow(Mat *data_frame1, Mat *data_frame2, Matx33d K)
+{
+    points3D *= 0;
+    points3D_RGB->clear();
+    R *= 0;
+    t *= 0;
+    Mat frame = Mat::zeros(Size(width_frame, height_frame), CV_8UC3);
+    flow = Mat::zeros(Size(width_frame, height_frame), CV_32FC2);
+    
+    if ((!data_frame1->empty()) && (!data_frame2->empty()))
+    {
+//--- STEP 1 --- Calculate optical flow -------------------------------------//
+        points1.clear();
+        points2.clear();
+        numKeypoints = 0;
+        //calcOpticalFlowFarneback( frameGREY, frameCacheGREY, flow, 0.9, 1, 12, 2, 8, 1.7, 0 );    // OPTFLOW_FARNEBACK_GAUSSIAN
+        optflow::calcOpticalFlowSparseToDense(*data_frame1, *data_frame2, flow, 4, 128, 0.01f, true, 500.0f, 1.5f);
+        
+        for (int y = 0; y < frame.rows; y += 3) {
+            for (int x = 0; x < frame.cols; x += 3) {
+                // get the flow from y, x position * 3 for better visibility
+                const Point2f flowatxy = flow.at<Point2f>(y, x) * 1;
+                // draw line at flow direction
+                line(frame, Point(x, y), Point(cvRound(x + flowatxy.x), cvRound(y + flowatxy.y)), Scalar(255, 200, 0));
+                // draw initial point
+                circle(frame, Point(x, y), 1, Scalar(0, 0, 0), -1);
+                points1.push_back(Point2f(x, y));
+                points2.push_back(Point2f((x + flowatxy.x), (y + flowatxy.y)));
+                Scalar RGB1 = data_frame1->at< Vec3b >( y, x );
+                Scalar RGB2 = data_frame2->at< Vec3b >( cvRound(y + flowatxy.y), cvRound(x + flowatxy.x) );
+                points3D_RGB[0].push_back( (RGB1[2] + RGB2[2]) / 2);
+                points3D_RGB[1].push_back( (RGB1[1] + RGB2[1]) / 2);
+                points3D_RGB[2].push_back( (RGB1[0] + RGB2[0]) / 2);
+                
+//                points3D_BGR.at< Vec3b >(x, y)[0] = ( (RGB1[0] + RGB2[0]) / 2);
+//                points3D_BGR.at< Vec3b >(x, y)[1] = ( (RGB1[1] + RGB2[1]) / 2);
+//                points3D_BGR.at< Vec3b >(x, y)[2] = ( (RGB1[2] + RGB2[2]) / 2);
+                numKeypoints++;
+            }
+        }
+        //imshow("RGB", points3D_BGR);
+        //waitKey(10);
+        
+//--- STEP 2 --- Find essential matrix --------------------------------------//
+        E = findEssentialMat(points1, points2, K, RANSAC, 0.999, 1.0, Essen_mask);
+        
+//--- STEP 3 --- Calculation of 3d points -----------------------------------//
+        recoverPose(E, points1, points2, K, R, t, 600, noArray(), points3D);
+        
+        for (int i = 0; i < points3D.cols; i++)
+        {
+            //cout << "3Dpoint[ " << i << " ] =";
+            for (int j = 0; j < points3D.rows; j++){
+                points3D.at<double>(j, i) /= points3D.at<double>(3, i);
+                //cout << " " << points3D.at<double>(j, i) << " ";
+            }
+            //cout << endl;
+        }
+        
+        FileStorage SFM_Result;
+        SFM_Result.open("SFM_Result_opticflow.txt", FileStorage::WRITE);
+        SFM_Result << "E" << E;
+        //SFM_Result << "points1" << points1;
+        //SFM_Result << "points2" << points2;
+        SFM_Result << "K" << K;
+        SFM_Result << "R" << R;
+        SFM_Result << "t" << t;
+        //SFM_Result << "points3D" << points3D;
+        SFM_Result.release();
+        cout << " --- SFM_Result written into file: SFM_Result_opticflow.txt" << endl;
+        
+        Rect r1(0, 0, frame.cols, frame.rows);
+        Rect r2(data_frame2->cols, 0, data_frame2->cols, data_frame2->rows);
+        frame.copyTo(frame4( r1 ));
+        data_frame2->copyTo(frame4( r2 ));
+        imshow("1-2 frame", frame4);
+    }
+    else
+    {   
+        Rect r1(0, 0, frame.cols, frame.rows);
+        Rect r2(data_frame2->cols, 0, data_frame2->cols, data_frame2->rows);
+        frame.copyTo(frame4( r1 ));
+        data_frame2->copyTo(frame4( r2 ));
+        imshow("1-2 frame", frame4);
+    }
+}
+
+
 void SFM_Reconstruction::opticalFlow(Mat *f, Mat *fc, int win, int vecS)
 {
     img2Original = *f;
     flow = Mat(img2Original.cols, img2Original.rows, CV_32FC2);
     cvtColor(*f, frameGREY, COLOR_BGR2GRAY);
     cvtColor(*fc, frameCacheGREY, COLOR_BGR2GRAY);
-    calcOpticalFlowFarneback(frameGREY, frameCacheGREY, flow, 0.9, 1, 12, 2, 8, 1.7, 0);//OPTFLOW_FARNEBACK_GAUSSIAN
+    //calcOpticalFlowFarneback(frameGREY, frameCacheGREY, flow, 0.9, 1, 12, 2, 8, 1.7, 0);//OPTFLOW_FARNEBACK_GAUSSIAN
+    optflow::calcOpticalFlowSparseToDense(frameGREY, frameCacheGREY, flow, 8, 128, 0.05f, true, 500.0f, 1.5f);
+    
     
     //cv::normalize(flow, flow, 1, 0, NORM_L2, -1, noArray());
     

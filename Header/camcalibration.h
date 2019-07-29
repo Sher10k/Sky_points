@@ -32,6 +32,7 @@ public:
     CalibrationCamera(VideoCapture *);
     void setParam(VideoCapture *);
     void printParam();
+    void Read_from_file(int);
     void calibrCameraChess( int numCornersHor,                 // Кол-во углов по вертикале и горизонтале для метода ChArUco и на 1 меньше чем кол-во 
                             int numCornersVer,                 // квадратов по вертикале и горизонтале, для метода калибровки по chessboard
                             unsigned int nFrames);             // Number of calibration frames

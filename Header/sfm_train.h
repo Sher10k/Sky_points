@@ -12,7 +12,8 @@
 //#include <opencv2/features2d.hpp>
 #include <opencv2/xfeatures2d.hpp>
 //#include <opencv2/xfeatures2d/nonfree.hpp>
-#include <opencv2/calib3d.hpp>
+#include <opencv2/optflow.hpp>
+#include <opencv2/calib3d.hpp>      // optflow::
 #include <opencv2/video.hpp>
 
 #include <opencv2/sfm.hpp>
@@ -69,6 +70,8 @@ public:
     
         // 3D points
     Mat points3D;
+//    Mat points3D_BGR;
+    vector < uchar > points3D_RGB[3];
     
         // Optical flow
     Mat flow, frameGREY, frameCacheGREY, img2Original;
@@ -88,6 +91,7 @@ public:
     SFM_Reconstruction(VideoCapture *);
     void setParam(VideoCapture *);
     void Reconstruction3D(Mat *, Mat *, Matx33d);    // Put old frame then new frame and K matrix
+    void Reconstruction3DopticFlow(Mat *, Mat *, Matx33d);
     void opticalFlow(Mat *, Mat *, int, int);
     void destroyWinSFM();
     

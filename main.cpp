@@ -201,8 +201,8 @@ int main()
     
         // Cloud of points
     //std::vector<pcl::visualization::Camera> camera; 
-    pcl::PointCloud <pcl::PointXYZ> cloud;
-    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud2 (new pcl::PointCloud<pcl::PointXYZ>);
+    pcl::PointCloud <pcl::PointXYZRGB> cloud;
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud2 (new pcl::PointCloud<pcl::PointXYZRGB>);
     boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer (new pcl::visualization::PCLVisualizer ("3D Viewer"));
     viewer->setBackgroundColor(0, 0, 0);
     viewer->addCoordinateSystem(1.0, "global");
@@ -235,7 +235,7 @@ int main()
         cap.set(CAP_PROP_FRAME_WIDTH, FRAME_WIDTH);     // 320, 640, (640, 1280)
         cap.set(CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT);   // 240, 480, (360, 720)
         //cap.set(CAP_PROP_POS_FRAMES, 0);              // Set zero-frame
-        //cap.set(CAP_PROP_AUTOFOCUS, 0);               // Set autofocus
+        cap.set(CAP_PROP_AUTOFOCUS, 0);               // Set autofocus
         //cap.set(CAP_PROP_FPS, 30);                    // Set FPS
         cap.read(frameRAW);
 
@@ -243,7 +243,7 @@ int main()
              << "Height = " << cap.get(CAP_PROP_FRAME_HEIGHT) << endl
              << "FPS = " << cap.get(CAP_PROP_FPS) << endl
              //<< "nframes = " << cap.get(CAP_PROP_FRAME_COUNT) << endl
-             //<< "Auto focus" << cap.get(CAP_PROP_AUTOFOCUS) << endl
+             << "Auto focus" << cap.get(CAP_PROP_AUTOFOCUS) << endl
              << "cap : " << cap.get(CAP_PROP_FPS) << endl
              << "----------" <<endl;
 
@@ -267,6 +267,8 @@ int main()
     //-------------------------------------- Initialize calibration -----------------------------//
     CalibrationCamera Calib(&cap);
     Calib.printParam();
+    Calib.Read_from_file(0);
+    f = 1;
     
     //-------------------------------------- Initialize SFM -------------------------------------//
     SFM_Reconstruction MySFM(&cap);
@@ -286,7 +288,8 @@ int main()
             int button_nf = waitKey(1);
             if ( button_nf == 32 )             // If press "space"
             {
-                MySFM.Reconstruction3D(&frameCache, &frame, Calib.cameraMatrix);    // Put old frame then new frame
+                //MySFM.Reconstruction3D( & frameCache, & frame, Calib.cameraMatrix );    // Put old frame then new frame
+                MySFM.Reconstruction3DopticFlow( & frameCache, & frame, Calib.cameraMatrix );
                 if (!MySFM.R.empty() && !MySFM.t.empty())
                 {
                     RtxRt(&Rotation[0], &translation[0], &MySFM.R, &MySFM.t);
@@ -327,6 +330,9 @@ int main()
                         cloud.points[i].x = (float)MySFM.points3D.at<double>(0, static_cast<int>(i));
                         cloud.points[i].y = (float)MySFM.points3D.at<double>(1, static_cast<int>(i));
                         cloud.points[i].z = (float)MySFM.points3D.at<double>(2, static_cast<int>(i));
+                        cloud.points[i].r = MySFM.points3D_RGB[0].at(i);
+                        cloud.points[i].g = MySFM.points3D_RGB[1].at(i);
+                        cloud.points[i].b = MySFM.points3D_RGB[2].at(i);
                     }
                         // Save 3D points in file
                     pcl::io::savePCDFileASCII ("Reconstruct_cloud.pcd", cloud);
@@ -337,13 +343,13 @@ int main()
                     string str = "sample cloud";
                     str += cloud_flag;
                     
-                    viewer->addPointCloud<pcl::PointXYZ>(cloud2, str, 0);
+                    viewer->addPointCloud<pcl::PointXYZRGB>(cloud2, str, 0);
                     viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 2, str);                        
                     cloud_flag++;
                     
-                    /*viewer->updatePointCloud<pcl::PointXYZ>(cloud2, "sample cloud");
-                    pcl::io::loadPCDFile("test_pcd.pcd", *cloud2);  // test_pcd.pcd
-                    viewer->addPointCloud<pcl::PointXYZ>(cloud2, "sample cloud", 0);*/
+//                    viewer->updatePointCloud<pcl::PointXYZ>(cloud2, "sample cloud");
+//                    pcl::io::loadPCDFile("test_pcd.pcd", *cloud2);  // test_pcd.pcd
+//                    viewer->addPointCloud<pcl::PointXYZ>(cloud2, "sample cloud", 0);
                 }
                 
                 frame.copyTo(frameCache);
@@ -388,7 +394,8 @@ int main()
                 }
                 MySFM.opticalFlow(&frame, &frameCache, win, 1);
                 imshow("OpticalFlow", MySFM.img2Original);
-            }*/
+            }
+            frame.copyTo(frameCache);*/
         }                                               // END Main loop -------------------------------------------//
         else if ( f == 2 ) {                            // Калибровка камеры  press "с" or "C"----------------------//      step 0
             //Calib.calibrCameraChess(10, 7, 10);    // 8, 6
