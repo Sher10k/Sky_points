@@ -16,7 +16,6 @@ void SFM_Reconstruction::setParam(VideoCapture *data_CAP)
     frame1 = Mat::zeros(Size(width_frame, height_frame), CV_8UC3);
     frame2 = Mat::zeros(Size(width_frame, height_frame), CV_8UC3);
     frame4 = Mat::zeros(Size(2 * width_frame, height_frame), CV_8UC3);
-//    points3D_BGR = Mat::zeros(Size(width_frame, height_frame), CV_8UC3);
     numKeypoints = 0;
 }
 
@@ -69,10 +68,16 @@ void SFM_Reconstruction::Reconstruction3D(Mat *data_frame1, Mat *data_frame2, Ma
             for (int i = 0; i < points3D.cols; i++)
             {
                 //cout << "3Dpoint[ " << i << " ] =";
-                for (int j = 0; j < points3D.rows; j++){
+                for (int j = 0; j < points3D.rows; j++)
+                {
                     points3D.at<double>(j, i) /= points3D.at<double>(3, i);
                     //cout << " " << points3D.at<double>(j, i) << " ";
                 }
+                Scalar RGB1 = data_frame1->at< Vec3b >( points1.at( static_cast< size_t >(i) ) );
+                Scalar RGB2 = data_frame2->at< Vec3b >( points2.at( static_cast< size_t >(i) ) );
+                points3D_RGB[0].push_back ( static_cast< uchar >( (RGB1[2] + RGB2[2]) / 2 ) );
+                points3D_RGB[1].push_back ( static_cast< uchar >( (RGB1[1] + RGB2[1]) / 2 ) );
+                points3D_RGB[2].push_back ( static_cast< uchar >( (RGB1[0] + RGB2[0]) / 2 ) );
                 //cout << endl;
             }
             
@@ -122,7 +127,8 @@ void SFM_Reconstruction::Reconstruction3DopticFlow(Mat *data_frame1, Mat *data_f
     points3D_RGB->clear();
     R *= 0;
     t *= 0;
-    Mat frame = Mat::zeros(Size(width_frame, height_frame), CV_8UC3);
+    frame4 = Mat::zeros(Size(2 * width_frame, height_frame), CV_8UC3);          //  data_frame2->type()
+    Mat frame = Mat::zeros(Size(width_frame, height_frame), CV_8UC3);           // data_frame2->type()
     flow = Mat::zeros(Size(width_frame, height_frame), CV_32FC2);
     
     if ((!data_frame1->empty()) && (!data_frame2->empty()))
@@ -131,8 +137,11 @@ void SFM_Reconstruction::Reconstruction3DopticFlow(Mat *data_frame1, Mat *data_f
         points1.clear();
         points2.clear();
         numKeypoints = 0;
+        Mat fg1, fg2;
+        cvtColor( *data_frame1, fg1, COLOR_BGR2GRAY );
+        cvtColor( *data_frame2, fg2, COLOR_BGR2GRAY );
         //calcOpticalFlowFarneback( frameGREY, frameCacheGREY, flow, 0.9, 1, 12, 2, 8, 1.7, 0 );    // OPTFLOW_FARNEBACK_GAUSSIAN
-        optflow::calcOpticalFlowSparseToDense(*data_frame1, *data_frame2, flow, 4, 128, 0.01f, true, 500.0f, 1.5f);
+        optflow::calcOpticalFlowSparseToDense( fg1, fg2, flow, 4, 128, 0.01f, true, 500.0f, 1.5f);
         
         for (int y = 0; y < frame.rows; y += 3) {
             for (int x = 0; x < frame.cols; x += 3) {
@@ -144,15 +153,11 @@ void SFM_Reconstruction::Reconstruction3DopticFlow(Mat *data_frame1, Mat *data_f
                 circle(frame, Point(x, y), 1, Scalar(0, 0, 0), -1);
                 points1.push_back(Point2f(x, y));
                 points2.push_back(Point2f((x + flowatxy.x), (y + flowatxy.y)));
-                Scalar RGB1 = data_frame1->at< Vec3b >( y, x );
-                Scalar RGB2 = data_frame2->at< Vec3b >( cvRound(y + flowatxy.y), cvRound(x + flowatxy.x) );
-                points3D_RGB[0].push_back( (RGB1[2] + RGB2[2]) / 2);
-                points3D_RGB[1].push_back( (RGB1[1] + RGB2[1]) / 2);
-                points3D_RGB[2].push_back( (RGB1[0] + RGB2[0]) / 2);
-                
-//                points3D_BGR.at< Vec3b >(x, y)[0] = ( (RGB1[0] + RGB2[0]) / 2);
-//                points3D_BGR.at< Vec3b >(x, y)[1] = ( (RGB1[1] + RGB2[1]) / 2);
-//                points3D_BGR.at< Vec3b >(x, y)[2] = ( (RGB1[2] + RGB2[2]) / 2);
+//                Scalar RGB1 = data_frame1->at< Vec3b >( y, x );
+//                Scalar RGB2 = data_frame2->at< Vec3b >( cvRound(y + flowatxy.y), cvRound(x + flowatxy.x) );
+//                points3D_RGB[0].push_back ( static_cast< uchar >( (RGB1[2] + RGB2[2]) / 2 ) );
+//                points3D_RGB[1].push_back ( static_cast< uchar >( (RGB1[1] + RGB2[1]) / 2 ) );
+//                points3D_RGB[2].push_back ( static_cast< uchar >( (RGB1[0] + RGB2[0]) / 2 ) );
                 numKeypoints++;
             }
         }
@@ -172,6 +177,11 @@ void SFM_Reconstruction::Reconstruction3DopticFlow(Mat *data_frame1, Mat *data_f
                 points3D.at<double>(j, i) /= points3D.at<double>(3, i);
                 //cout << " " << points3D.at<double>(j, i) << " ";
             }
+            Scalar RGB1 = data_frame1->at< Vec3b >( points1.at( static_cast< size_t >(i) ) );
+            Scalar RGB2 = data_frame2->at< Vec3b >( points2.at( static_cast< size_t >(i) ) );
+            points3D_RGB[0].push_back ( static_cast< uchar >( (RGB1[2] + RGB2[2]) / 2 ) );
+            points3D_RGB[1].push_back ( static_cast< uchar >( (RGB1[1] + RGB2[1]) / 2 ) );
+            points3D_RGB[2].push_back ( static_cast< uchar >( (RGB1[0] + RGB2[0]) / 2 ) );
             //cout << endl;
         }
         
@@ -183,7 +193,7 @@ void SFM_Reconstruction::Reconstruction3DopticFlow(Mat *data_frame1, Mat *data_f
         SFM_Result << "K" << K;
         SFM_Result << "R" << R;
         SFM_Result << "t" << t;
-        //SFM_Result << "points3D" << points3D;
+        SFM_Result << "points3D" << points3D;
         SFM_Result.release();
         cout << " --- SFM_Result written into file: SFM_Result_opticflow.txt" << endl;
         

@@ -47,11 +47,14 @@
 #include <pcl/io/pcd_io.h>
 //#include <pcl/console/parse.h>
 //#include <pcl/features/normal_3d.h>
+#include <pcl/common/common.h>
 //#include <pcl/common/common_headers.h>
 #include <pcl/visualization/pcl_visualizer.h>
 //#include <pcl/visualization/cloud_viewer.h>
 
 //#include <boost/thread/thread.hpp>
+
+#include <Eigen/Eigen>
 
 #include "Header/camcalibration.h"
 #include "Header/sfm_train.h"
@@ -61,9 +64,10 @@ using namespace cv;
 using namespace cv::sfm;
 using namespace cv::xfeatures2d;
 using namespace pcl;
+using namespace Eigen;
 
-#define FRAME_WIDTH 640
-#define FRAME_HEIGHT 480
+#define FRAME_WIDTH 640     // 320, 640, (640, 1280)
+#define FRAME_HEIGHT 480    // 240, 480, (360, 720)
 
 void RtxRt(Mat *dR1, Mat *dt1, Mat *dR2, Mat *dt2)
 {
@@ -162,8 +166,13 @@ void RtxXYZ(Mat *dR, Mat *dt, Mat *p3d)
     {
         tempRt.at< double >(i, 3) = dt->at< double >(i, 0);
     }
+    
     for (int n = 0; n < p3d->cols; n++) 
     {
+//        cout << p3d[n] << endl;
+//        cout << tempRt << endl;
+//        p3d[n] = tempRt * p3d[n];
+//        cout << p3d[n] << endl;
         for (int i = 0; i < 4; i++) 
         {
             p3d->at< double >(i, n) = (tempRt.at< double >(i, 0)) * (p3d->at< double >(0, n)) + 
@@ -182,7 +191,7 @@ void RtxXYZ(Mat *dR, Mat *dt, Mat *p3d)
 //    }
 }
 
-int main()
+int main(int argc, char *argv[])  //int argc, char *argv[]
 {
     //-------------------------------------- VARIABLES ------------------------------------------//
     Mat frameRAW, frame, frameCache;
@@ -201,18 +210,22 @@ int main()
     
         // Cloud of points
     //std::vector<pcl::visualization::Camera> camera; 
-    pcl::PointCloud <pcl::PointXYZRGB> cloud;
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud2 (new pcl::PointCloud<pcl::PointXYZRGB>);
-    boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer (new pcl::visualization::PCLVisualizer ("3D Viewer"));
+    PointCloud < PointXYZRGB > cloud;
+    PointCloud < PointXYZRGB > ::Ptr cloud2 ( new PointCloud < PointXYZRGB > );
+    boost::shared_ptr < visualization::PCLVisualizer > viewer ( new visualization::PCLVisualizer ("3D Viewer") );
+    vector < visualization::Camera > cam;
     viewer->setBackgroundColor(0, 0, 0);
     viewer->addCoordinateSystem(1.0, "global");
-    viewer->setSize(30, 30);
+//    viewer->setSize(30, 30);
     // Evil functions
-    viewer->initCameraParameters();
-    viewer->setCameraPosition(5, 5, 5,    0, 0, 0,   0, 0, 1);
-    viewer->setCameraFieldOfView(0.523599); // 0.523599
-    viewer->setCameraClipDistances(0, 100);
+//    viewer->initCameraParameters();
+//    viewer->setCameraPosition(5, 5, 5,    0, 0, 0,   0, 0, 1);
+//    viewer->setCameraFieldOfView(0.523599); // 0.523599
+//    viewer->setCameraClipDistances(0, 100);
     char cloud_flag = 0;
+    //pcl::visualization::Camera::Camera();
+    
+    
     
         // Other variables
     int f = 2;              // Переключение в режим калибровки
@@ -224,7 +237,7 @@ int main()
     
     //-------------------------------------- Initialize VIDEOCAPTURE ----------------------------//
     VideoCapture cap;
-    int deviceID = 1;                   //  camera 1
+    int deviceID = 0;                   //  camera 1
     int apiID = cv::CAP_ANY;            //  0 = autodetect default API
     cap.open(deviceID + apiID);         //  Open camera
     if(!cap.isOpened()) {               // Check if we succeeded
@@ -235,7 +248,7 @@ int main()
         cap.set(CAP_PROP_FRAME_WIDTH, FRAME_WIDTH);     // 320, 640, (640, 1280)
         cap.set(CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT);   // 240, 480, (360, 720)
         //cap.set(CAP_PROP_POS_FRAMES, 0);              // Set zero-frame
-        cap.set(CAP_PROP_AUTOFOCUS, 0);               // Set autofocus
+        //cap.set(CAP_PROP_AUTOFOCUS, 0);               // Set autofocus
         //cap.set(CAP_PROP_FPS, 30);                    // Set FPS
         cap.read(frameRAW);
 
@@ -243,7 +256,7 @@ int main()
              << "Height = " << cap.get(CAP_PROP_FRAME_HEIGHT) << endl
              << "FPS = " << cap.get(CAP_PROP_FPS) << endl
              //<< "nframes = " << cap.get(CAP_PROP_FRAME_COUNT) << endl
-             << "Auto focus" << cap.get(CAP_PROP_AUTOFOCUS) << endl
+             //<< "Auto focus" << cap.get(CAP_PROP_AUTOFOCUS) << endl
              << "cap : " << cap.get(CAP_PROP_FPS) << endl
              << "----------" <<endl;
 
@@ -274,6 +287,25 @@ int main()
     SFM_Reconstruction MySFM(&cap);
     
     
+    
+    Mat_<float> rotation_matrix1 = Mat::eye(4, 4, CV_32FC1);
+    rotation_matrix1(0, 0) = 2;
+    rotation_matrix1(0, 2) = 1;
+    Mat_<float> rotation_matrix2 = Mat::eye(4, 4, CV_32FC1);
+    rotation_matrix2(0, 0) = 2;
+    rotation_matrix2(2, 2) = 3;
+
+    /* Translation vector */
+    Vec4f current_translation( 1.2f,
+                               2.3f,
+                               3.1f,
+                               1 );
+    cout << current_translation << endl;
+    cout << rotation_matrix1 << endl;
+    cout << rotation_matrix2 << endl;
+    cout << rotation_matrix1 * Mat(current_translation) << endl;
+    cout << rotation_matrix1 * rotation_matrix2 << endl;
+    
     //------------------------------------------ START ------------------------------------------//
     while(1) {         
         if (f == 1) {                                   // Main loop -----------------------------------------------//
@@ -283,13 +315,15 @@ int main()
                 break;
             }
             undistort(frameRAW, frame, Calib.cameraMatrix, Calib.distCoeffs);
+//            cvtColor( frame, frame, COLOR_BGR2GRAY );
+//            cv::Canny(frame, frame, 80, 255, 3);
             imshow("Real time", frame);
             
             int button_nf = waitKey(1);
             if ( button_nf == 32 )             // If press "space"
             {
-                //MySFM.Reconstruction3D( & frameCache, & frame, Calib.cameraMatrix );    // Put old frame then new frame
-                MySFM.Reconstruction3DopticFlow( & frameCache, & frame, Calib.cameraMatrix );
+                MySFM.Reconstruction3D( & frameCache, & frame, Calib.cameraMatrix );    // Put old frame then new frame
+                //MySFM.Reconstruction3DopticFlow( & frameCache, & frame, Calib.cameraMatrix );
                 if (!MySFM.R.empty() && !MySFM.t.empty())
                 {
                     RtxRt(&Rotation[0], &translation[0], &MySFM.R, &MySFM.t);
@@ -297,7 +331,9 @@ int main()
                 
                 if (!MySFM.points3D.empty())
                 {
+                        // Multiply the points by the camera displacement matrix
                     RtxXYZ(&Rotation[1], &translation[1], &MySFM.points3D);
+                        // Save the matrices P and T for the following points
                     for (int i = 0; i < 3; i++) 
                     {
                         for (int j = 0; j < 3; j++)
@@ -309,7 +345,7 @@ int main()
                     {
                         translation[1].at< double >(i, 3) = translation[0].at< double >(i, 0);
                     }
-                    for (int i = 0; i < MySFM.points3D.cols; i++)
+                    /*for (int i = 0; i < MySFM.points3D.cols; i++)
                     {
                         //cout << "3Dpoint[ " << i << " ] =";
                         for (int j = 0; j < MySFM.points3D.rows; j++){
@@ -317,7 +353,7 @@ int main()
                             //cout << " " << points3D.at<double>(j, i) << " ";
                         }
                         //cout << endl;
-                    }
+                    }*/
                     
                         // 3D points cloud
                     cloud.height = 1;
@@ -346,6 +382,21 @@ int main()
                     viewer->addPointCloud<pcl::PointXYZRGB>(cloud2, str, 0);
                     viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 2, str);                        
                     cloud_flag++;
+                    viewer->initCameraParameters();
+                    viewer->setCameraFieldOfView(0.5); // 0.523599 vertical field of view in radians
+                    viewer->setCameraClipDistances(-1000, 2000);
+                    //viewer->setCameraParameters(Calib.cameraMatrix, );
+                    viewer->setCameraPosition(-5, -5, -10,    0, 0, 10,   0, -1, 0);
+                    viewer->getCameraParameters( argc, argv );
+                    viewer->setPosition(0, 0);
+                    
+                    //Save the position of the camera           
+                    viewer->getCameras(cam);
+                    //Print recorded points on the screen: 
+                    cout << "Cam: " << endl 
+                         << " - pos: (" << cam[0].pos[0] << ", "    << cam[0].pos[1] << ", "    << cam[0].pos[2] << ")" << endl 
+                         << " - view: (" << cam[0].view[0] << ", "   << cam[0].view[1] << ", "   << cam[0].view[2] << ")" << endl 
+                         << " - focal: (" << cam[0].focal[0] << ", "  << cam[0].focal[1] << ", "  << cam[0].focal[2] << ")" << endl;
                     
 //                    viewer->updatePointCloud<pcl::PointXYZ>(cloud2, "sample cloud");
 //                    pcl::io::loadPCDFile("test_pcd.pcd", *cloud2);  // test_pcd.pcd

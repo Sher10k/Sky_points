@@ -70,7 +70,6 @@ public:
     
         // 3D points
     Mat points3D;
-//    Mat points3D_BGR;
     vector < uchar > points3D_RGB[3];
     
         // Optical flow
