@@ -14,14 +14,18 @@
 
 #define CERES_FOUND true
 #define OPENCV_TRAITS_ENABLE_DEPRECATED
+//#define EIGEN_RUNTIME_NO_MALLOC
 
 #include <iostream>
 //#include <string>
 //#include <stdio.h>
 //#include <thread>
 
+#include <Eigen/Eigen>
+
 #include <opencv2/core.hpp>
 #include <opencv2/core/mat.hpp>
+#include <opencv2/core/eigen.hpp>
 //#include <opencv2/core/types_c.h>
 //#include <opencv2/core/types.hpp>
 #include <opencv2/core/utility.hpp>
@@ -45,16 +49,15 @@
 
 #include <pcl/io/io.h>
 #include <pcl/io/pcd_io.h>
+//#include <pcl/impl/point_types.hpp>
 //#include <pcl/console/parse.h>
 //#include <pcl/features/normal_3d.h>
-#include <pcl/common/common.h>
+#include <pcl/visualization/common/common.h>
 //#include <pcl/common/common_headers.h>
 #include <pcl/visualization/pcl_visualizer.h>
 //#include <pcl/visualization/cloud_viewer.h>
 
 //#include <boost/thread/thread.hpp>
-
-#include <Eigen/Eigen>
 
 #include "Header/camcalibration.h"
 #include "Header/sfm_train.h"
@@ -69,144 +72,11 @@ using namespace Eigen;
 #define FRAME_WIDTH 640     // 320, 640, (640, 1280)
 #define FRAME_HEIGHT 480    // 240, 480, (360, 720)
 
-void RtxRt(Mat *dR1, Mat *dt1, Mat *dR2, Mat *dt2)
-{
-// --- Temporary matrices ---------------------------------------------------//
-    Mat tempRt1 = Mat::zeros(4, 4, CV_64F);
-    tempRt1.at< double >(3, 3) = 1;
-    Mat tempRt2 = Mat::zeros(4, 4, CV_64F);
-    tempRt2.at< double >(3, 3) = 1;
-    Mat ResultRt = Mat::zeros(4, 4, CV_64F);
-    for (int i = 0; i < 3; i++) 
-    {
-        for (int j = 0; j < 3; j++)
-        {
-            tempRt1.at< double >(i, j) = dR1->at<double>(i, j);
-            tempRt2.at< double >(i, j) = dR2->at< double >(i, j);
-        }
-    }
-    for (int i = 0; i < 3; i++) 
-    {
-        tempRt1.at< double >(i, 3) = dt1->at< double >(i, 0);
-        tempRt2.at< double >(i, 3) = dt2->at< double >(i, 0);
-    }
-    cout << "TempRt1 = " << endl;
-    for (int i = 0; i < tempRt1.rows; i++)
-    {
-        for (int j = 0; j < tempRt1.cols; j++)
-            cout << " " << tempRt1.at< double >(i, j) << "\t\t";
-        cout << endl;
-    }
-    cout << "TempRt2 = " << endl;
-    for (int i = 0; i < tempRt2.rows; i++)
-    {
-        for (int j = 0; j < tempRt2.cols; j++)
-            cout << " " << tempRt2.at< double >(i, j) << "\t\t";
-        cout << endl;
-    }
-    
-// --- Multiplication matrix ------------------------------------------------//
-    for (int i = 0; i < 4; i++) 
-    {
-        for (int j = 0; j < 4; j++)
-        {
-            ResultRt.at< double >(i, j) = (tempRt1.at< double >(i, 0)) * (tempRt2.at< double >(0, j)) + 
-                                          (tempRt1.at< double >(i, 1)) * (tempRt2.at< double >(1, j)) + 
-                                          (tempRt1.at< double >(i, 2)) * (tempRt2.at< double >(2, j)) +
-                                          (tempRt1.at< double >(i, 3)) * (tempRt2.at< double >(3, j));
-        }
-    }
-    for (int i = 0; i < 3; i++) 
-    {
-        for (int j = 0; j < 3; j++)
-        {
-            dR1[0].at< double >(i, j) = ResultRt.at< double >(i, j);
-        }
-    }
-    for (int i = 0; i < 3; i++) 
-    {
-        dt1[0].at< double >(i, 0) = ResultRt.at< double >(i, 3);
-    }
-// --- Print matrix ---------------------------------------------------------//
-    cout << "ResultRt = " << endl;
-    for (int i = 0; i < ResultRt.rows; i++)
-    {
-        for (int j = 0; j < ResultRt.cols; j++)
-            cout << " " << ResultRt.at< double >(i, j) << "\t\t";
-        cout << endl;
-    }
-//    cout << "R1 = " << endl;
-//    for (int i = 0; i < dR1->rows; i++)
-//    {
-//        for (int j = 0; j < dR1->cols; j++)
-//            cout << " " << dR1->at< double >(i, j) << "\t\t";
-//        cout << endl;
-//    }
-//    cout << "t1 = " << endl;
-//    for (int i = 0; i < dt1->rows; i++)
-//    {
-//        for (int j = 0; j < dt1->cols; j++)
-//            cout << " " << dt1->at< double >(i, j) << "\t\t";
-//        cout << endl;
-//    }
-}
-
-void RtxXYZ(Mat *dR, Mat *dt, Mat *p3d)
-{
-    Mat tempRt = Mat::zeros(4, 4, CV_64F);
-    tempRt.at< double >(3, 3) = 1;
-    for (int i = 0; i < 3; i++) 
-    {
-        for (int j = 0; j < 3; j++)
-        {
-            tempRt.at< double >(i, j) = dR->at<double>(i, j);
-        }
-    }
-    for (int i = 0; i < 3; i++) 
-    {
-        tempRt.at< double >(i, 3) = dt->at< double >(i, 0);
-    }
-    
-    for (int n = 0; n < p3d->cols; n++) 
-    {
-//        cout << p3d[n] << endl;
-//        cout << tempRt << endl;
-//        p3d[n] = tempRt * p3d[n];
-//        cout << p3d[n] << endl;
-        for (int i = 0; i < 4; i++) 
-        {
-            p3d->at< double >(i, n) = (tempRt.at< double >(i, 0)) * (p3d->at< double >(0, n)) + 
-                                      (tempRt.at< double >(i, 1)) * (p3d->at< double >(1, n)) + 
-                                      (tempRt.at< double >(i, 2)) * (p3d->at< double >(2, n)) +
-                                      (tempRt.at< double >(i, 3)) * (p3d->at< double >(3, n));
-        }
-    }
-//    for (int i = 0; i < p3d->cols; i++)
-//    {
-//        cout << "3Dpoint[ " << i << " ] =";
-//        for (int j = 0; j < p3d->rows; j++){
-//            cout << " " << p3d->at<double>(j, i) << " ";
-//        }
-//        cout << endl;
-//    }
-}
 
 int main(int argc, char *argv[])  //int argc, char *argv[]
 {
     //-------------------------------------- VARIABLES ------------------------------------------//
     Mat frameRAW, frame, frameCache;
-    
-        // Camera position matrix
-    double dataR[9] = { 1, 0, 0, 
-                        0, 1, 0, 
-                        0, 0, 1 };
-    vector< Mat > Rotation(2);
-    Rotation[0] = Mat(3, 3, CV_64F, dataR);
-    Rotation[1] = Mat(3, 3, CV_64F, dataR);
-    double datat[3] = { 0, 0, 0 };
-    vector< Mat > translation(2);
-    translation[0] = Mat(3, 1, CV_64F, datat);
-    translation[1] = Mat(3, 1, CV_64F, datat);
     
         // Cloud of points
     //std::vector<pcl::visualization::Camera> camera; 
@@ -222,10 +92,38 @@ int main(int argc, char *argv[])  //int argc, char *argv[]
 //    viewer->setCameraPosition(5, 5, 5,    0, 0, 0,   0, 0, 1);
 //    viewer->setCameraFieldOfView(0.523599); // 0.523599
 //    viewer->setCameraClipDistances(0, 100);
-    char cloud_flag = 0;
-    //pcl::visualization::Camera::Camera();
+    size_t cloud_flag = 0;     // char
+        // Init of camera default parameters
+    viewer->getCameras(cam);
+    cam[cloud_flag].pos[0] = 0;
+    cam[cloud_flag].pos[1] = 0;
+    cam[cloud_flag].pos[2] = 0;
+    cout << "Cam: " << endl 
+         << " - pos: (" << cam[0].pos[0] << ", "    << cam[0].pos[1] << ", "    << cam[0].pos[2] << ")" << endl 
+         << " - clip: (" << cam[0].clip[0] << ", " << cam[0].clip[1] << ")" << endl
+         << " - fovy: (" << cam[0].fovy << ")" << endl
+         << " - view: (" << cam[0].view[0] << ", "   << cam[0].view[1] << ", "   << cam[0].view[2] << ")" << endl 
+         << " - focal: (" << cam[0].focal[0] << ", "  << cam[0].focal[1] << ", "  << cam[0].focal[2] << ")" << endl
+         << " - window_pos: (" << cam[0].window_pos[0] << ", " << cam[0].window_pos[1] << ")" << endl
+         << " - window_size: (" << cam[0].window_size[0] << ", " << cam[0].window_size[1] << ")" << endl;
+    //viewer->addSphere(cloud2->points[0], 0.2, 0.5, 0.5, 0.0, "sphere");
+    viewer->addSphere( PointXYZ( static_cast<float>(cam[cloud_flag].pos[0]), 
+                                 static_cast<float>(cam[cloud_flag].pos[1]), 
+                                 static_cast<float>(cam[cloud_flag].pos[2]) ), 
+                       0.1, 
+                       0, 100, 255, 
+                       "sphere" + static_cast< char >(cloud_flag), 0 );
     
-    
+        // Camera position matrix
+    vector < Matrix4d > Rt;
+    Matrix4d one;
+    one << 1,0,0,0,
+           0,1,0,0,
+           0,0,1,0,
+           0,0,0,1;
+    Rt.push_back(one);
+    cout << "Rt[ " << cloud_flag << " ]= " << endl 
+         << Rt[ cloud_flag ] << endl;
     
         // Other variables
     int f = 2;              // Переключение в режим калибровки
@@ -237,7 +135,7 @@ int main(int argc, char *argv[])  //int argc, char *argv[]
     
     //-------------------------------------- Initialize VIDEOCAPTURE ----------------------------//
     VideoCapture cap;
-    int deviceID = 0;                   //  camera 1
+    int deviceID = 1;                   //  camera 1
     int apiID = cv::CAP_ANY;            //  0 = autodetect default API
     cap.open(deviceID + apiID);         //  Open camera
     if(!cap.isOpened()) {               // Check if we succeeded
@@ -252,13 +150,15 @@ int main(int argc, char *argv[])  //int argc, char *argv[]
         //cap.set(CAP_PROP_FPS, 30);                    // Set FPS
         cap.read(frameRAW);
 
-        cout << "Width = " << cap.get(CAP_PROP_FRAME_WIDTH) << endl
+        cout << " --- VideoCapture" <<endl
+             << "CAP = " << cap.getBackendName() << endl
+             << "Width = " << cap.get(CAP_PROP_FRAME_WIDTH) << endl
              << "Height = " << cap.get(CAP_PROP_FRAME_HEIGHT) << endl
              << "FPS = " << cap.get(CAP_PROP_FPS) << endl
              //<< "nframes = " << cap.get(CAP_PROP_FRAME_COUNT) << endl
              //<< "Auto focus" << cap.get(CAP_PROP_AUTOFOCUS) << endl
              << "cap : " << cap.get(CAP_PROP_FPS) << endl
-             << "----------" <<endl;
+             << " --- " <<endl;
 
             // Calculation FPS
         /*double fps;
@@ -279,32 +179,14 @@ int main(int argc, char *argv[])  //int argc, char *argv[]
     
     //-------------------------------------- Initialize calibration -----------------------------//
     CalibrationCamera Calib(&cap);
-    Calib.printParam();
     Calib.Read_from_file(0);
+    Calib.printParam();
     f = 1;
-    
+    Matrix3d K;
+    cv2eigen(Calib.cameraMatrix, K);
     //-------------------------------------- Initialize SFM -------------------------------------//
     SFM_Reconstruction MySFM(&cap);
     
-    
-    
-    Mat_<float> rotation_matrix1 = Mat::eye(4, 4, CV_32FC1);
-    rotation_matrix1(0, 0) = 2;
-    rotation_matrix1(0, 2) = 1;
-    Mat_<float> rotation_matrix2 = Mat::eye(4, 4, CV_32FC1);
-    rotation_matrix2(0, 0) = 2;
-    rotation_matrix2(2, 2) = 3;
-
-    /* Translation vector */
-    Vec4f current_translation( 1.2f,
-                               2.3f,
-                               3.1f,
-                               1 );
-    cout << current_translation << endl;
-    cout << rotation_matrix1 << endl;
-    cout << rotation_matrix2 << endl;
-    cout << rotation_matrix1 * Mat(current_translation) << endl;
-    cout << rotation_matrix1 * rotation_matrix2 << endl;
     
     //------------------------------------------ START ------------------------------------------//
     while(1) {         
@@ -322,38 +204,24 @@ int main(int argc, char *argv[])  //int argc, char *argv[]
             int button_nf = waitKey(1);
             if ( button_nf == 32 )             // If press "space"
             {
+                    // SFM reconstruction
                 MySFM.Reconstruction3D( & frameCache, & frame, Calib.cameraMatrix );    // Put old frame then new frame
                 //MySFM.Reconstruction3DopticFlow( & frameCache, & frame, Calib.cameraMatrix );
-                if (!MySFM.R.empty() && !MySFM.t.empty())
-                {
-                    RtxRt(&Rotation[0], &translation[0], &MySFM.R, &MySFM.t);
-                }
                 
                 if (!MySFM.points3D.empty())
                 {
-                        // Multiply the points by the camera displacement matrix
-                    RtxXYZ(&Rotation[1], &translation[1], &MySFM.points3D);
-                        // Save the matrices P and T for the following points
-                    for (int i = 0; i < 3; i++) 
-                    {
-                        for (int j = 0; j < 3; j++)
-                        {
-                            Rotation[1].at< double >(i, j) = Rotation[0].at<double>(i, j);
-                        }
-                    }
-                    for (int i = 0; i < 3; i++) 
-                    {
-                        translation[1].at< double >(i, 3) = translation[0].at< double >(i, 0);
-                    }
-                    /*for (int i = 0; i < MySFM.points3D.cols; i++)
-                    {
-                        //cout << "3Dpoint[ " << i << " ] =";
-                        for (int j = 0; j < MySFM.points3D.rows; j++){
-                            MySFM.points3D.at<double>(j, i) /= MySFM.points3D.at<double>(3, i);
-                            //cout << " " << points3D.at<double>(j, i) << " ";
-                        }
-                        //cout << endl;
-                    }*/
+                    cloud_flag++;
+                    Rt.push_back( Rt[ cloud_flag - 1 ] );
+                    Matrix4d tempRt;
+                    tempRt << MySFM.R.at<double>(0, 0), MySFM.R.at<double>(0, 1), MySFM.R.at<double>(0, 2), MySFM.t.at<double>(0, 0),
+                              MySFM.R.at<double>(1, 0), MySFM.R.at<double>(1, 1), MySFM.R.at<double>(1, 2), MySFM.t.at<double>(0, 1),
+                              MySFM.R.at<double>(2, 0), MySFM.R.at<double>(2, 1), MySFM.R.at<double>(2, 2), MySFM.t.at<double>(0, 2),
+                              0,                        0,                        0,                        1;
+                    cout << "tempRt[ " << cloud_flag << " ]= " << endl 
+                         << tempRt << endl;
+                    Rt[ cloud_flag ] *= tempRt;
+                    cout << "Rt[ " << cloud_flag << " ]= " << endl 
+                         << Rt[ cloud_flag ] << endl;
                     
                         // 3D points cloud
                     cloud.height = 1;
@@ -363,9 +231,15 @@ int main(int argc, char *argv[])  //int argc, char *argv[]
                     
                     for (size_t i = 0; i < cloud.points.size (); ++i)
                     {
-                        cloud.points[i].x = (float)MySFM.points3D.at<double>(0, static_cast<int>(i));
-                        cloud.points[i].y = (float)MySFM.points3D.at<double>(1, static_cast<int>(i));
-                        cloud.points[i].z = (float)MySFM.points3D.at<double>(2, static_cast<int>(i));
+                        Vector4d temp3Dpoint;
+                        temp3Dpoint << MySFM.points3D.at< double >(0, static_cast<int>(i)), 
+                                       MySFM.points3D.at< double >(1, static_cast<int>(i)),
+                                       MySFM.points3D.at< double >(2, static_cast<int>(i)),
+                                       MySFM.points3D.at< double >(3, static_cast<int>(i));
+                        temp3Dpoint = Rt[ cloud_flag - 1 ] * temp3Dpoint;
+                        cloud.points[i].x = static_cast<float>(temp3Dpoint(0));  // (float)
+                        cloud.points[i].y = static_cast<float>(temp3Dpoint(1));
+                        cloud.points[i].z = static_cast<float>(temp3Dpoint(2));
                         cloud.points[i].r = MySFM.points3D_RGB[0].at(i);
                         cloud.points[i].g = MySFM.points3D_RGB[1].at(i);
                         cloud.points[i].b = MySFM.points3D_RGB[2].at(i);
@@ -377,26 +251,41 @@ int main(int argc, char *argv[])  //int argc, char *argv[]
                     pcl::io::loadPCDFile("Reconstruct_cloud.pcd", *cloud2);  // test_pcd.pcd
                     
                     string str = "sample cloud";
-                    str += cloud_flag;
+                    str += static_cast< char >(cloud_flag);
                     
                     viewer->addPointCloud<pcl::PointXYZRGB>(cloud2, str, 0);
-                    viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 2, str);                        
-                    cloud_flag++;
+                    viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 2, str);
                     viewer->initCameraParameters();
                     viewer->setCameraFieldOfView(0.5); // 0.523599 vertical field of view in radians
                     viewer->setCameraClipDistances(-1000, 2000);
-                    //viewer->setCameraParameters(Calib.cameraMatrix, );
                     viewer->setCameraPosition(-5, -5, -10,    0, 0, 10,   0, -1, 0);
                     viewer->getCameraParameters( argc, argv );
                     viewer->setPosition(0, 0);
                     
-                    //Save the position of the camera           
-                    viewer->getCameras(cam);
-                    //Print recorded points on the screen: 
-                    cout << "Cam: " << endl 
-                         << " - pos: (" << cam[0].pos[0] << ", "    << cam[0].pos[1] << ", "    << cam[0].pos[2] << ")" << endl 
-                         << " - view: (" << cam[0].view[0] << ", "   << cam[0].view[1] << ", "   << cam[0].view[2] << ")" << endl 
-                         << " - focal: (" << cam[0].focal[0] << ", "  << cam[0].focal[1] << ", "  << cam[0].focal[2] << ")" << endl;
+                    cam.push_back(cam[ cloud_flag - 1 ]);
+                    Vector4d Cxyzw;
+                    Cxyzw<< cam[cloud_flag].pos[0], cam[cloud_flag].pos[1], cam[cloud_flag].pos[2], 1;
+                    Cxyzw = Rt[cloud_flag] * Cxyzw;
+                    cam[cloud_flag].pos[0] = Cxyzw(0);
+                    cam[cloud_flag].pos[1] = Cxyzw(1);
+                    cam[cloud_flag].pos[2] = Cxyzw(2);
+                    cout << "Cam[ " << cloud_flag << " ]: " << endl 
+                         << " - pos: (" << cam[cloud_flag].pos[0] << ", "    << cam[cloud_flag].pos[1] << ", "    << cam[cloud_flag].pos[2] << ")" << endl 
+                         << " - clip: (" << cam[cloud_flag].clip[0] << ", " << cam[cloud_flag].clip[1] << ")" << endl
+                         << " - fovy: (" << cam[cloud_flag].fovy << ")" << endl
+                         << " - view: (" << cam[cloud_flag].view[0] << ", "   << cam[cloud_flag].view[1] << ", "   << cam[cloud_flag].view[2] << ")" << endl 
+                         << " - focal: (" << cam[cloud_flag].focal[0] << ", "  << cam[cloud_flag].focal[1] << ", "  << cam[cloud_flag].focal[2] << ")" << endl
+                         << " - window_pos: (" << cam[cloud_flag].window_pos[0] << ", " << cam[cloud_flag].window_pos[1] << ")" << endl
+                         << " - window_size: (" << cam[cloud_flag].window_size[0] << ", " << cam[cloud_flag].window_size[1] << ")" << endl
+                         << endl;
+                    string str_Sphere = "sphere";
+                    str_Sphere += static_cast< char >(cloud_flag);
+                    viewer->addSphere( PointXYZ( static_cast<float>(cam[cloud_flag].pos[0]), 
+                                                 static_cast<float>(cam[cloud_flag].pos[1]), 
+                                                 static_cast<float>(cam[cloud_flag].pos[2]) ), 
+                                       0.1, 
+                                       0, 100, 255, 
+                                       str_Sphere, 0 );
                     
 //                    viewer->updatePointCloud<pcl::PointXYZ>(cloud2, "sample cloud");
 //                    pcl::io::loadPCDFile("test_pcd.pcd", *cloud2);  // test_pcd.pcd
@@ -452,6 +341,7 @@ int main(int argc, char *argv[])  //int argc, char *argv[]
             //Calib.calibrCameraChess(10, 7, 10);    // 8, 6
             Calib.calibrCameraChArUco(11, 8, 10, 7, 10, 10);
             Calib.printParam();
+            cv2eigen(Calib.cameraMatrix, K);
             invert(Calib.cameraMatrix, K_1, DECOMP_LU);
             f = 1;
         }                                               // END Калибровка камеры  ----------------------------------//   END step 0
@@ -472,6 +362,7 @@ int main(int argc, char *argv[])  //int argc, char *argv[]
     }
     //------------------------------------------- END -------------------------------------------//
     
+    viewer->close();
     cap.release();
     return 0;
 }

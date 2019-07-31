@@ -17,7 +17,8 @@ void CalibrationCamera::setParam(VideoCapture *data_CAP)
 
 void CalibrationCamera::printParam()
 {
-    cout    << "CAP = " << CAP.getBackendName() << endl;
+    cout << " --- Calibration parameters" <<endl;
+//    cout << "CAP = " << CAP.getBackendName() << endl;
 //    cout    << "Width = " << CAP.get(CAP_PROP_FRAME_WIDTH) << endl
 //            << "Height = " << CAP.get(CAP_PROP_FRAME_HEIGHT) << endl;
     cout << "cameraMatrix = " << endl;
@@ -50,7 +51,7 @@ void CalibrationCamera::printParam()
             cout << tvecs[i].at<double>(j) << "   ";
         cout << " ]" << endl;
     }
-    cout << endl;
+    cout << " --- " <<endl;
 }
 
 void CalibrationCamera::Read_from_file(int k)

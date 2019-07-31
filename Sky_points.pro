@@ -64,12 +64,14 @@ LIBS += -lboost_system \
         -lvtkCommonCore-8.0 \
         -lvtkRenderingCore-8.0 \
         -lvtkCommonDataModel-8.0  \
-        -lvtkCommonMath-8.0
+        -lvtkCommonMath-8.0 \
+        -lvtkFiltersSources-8.0 \
+        -lvtkCommonExecutionModel-8.0 \
+        -lvtkRenderingLOD-8.0
         #-lpthread \
         #-lvtksys-8.0
         #-lX11 \
         #-ldl
-
 
 #INCLUDEPATH += /usr/local/include/opencv4
 #LIBS += -L/usr/local/lib

@@ -84,8 +84,8 @@ void SFM_Reconstruction::Reconstruction3D(Mat *data_frame1, Mat *data_frame2, Ma
             FileStorage SFM_Result;
             SFM_Result.open("SFM_Result.txt", FileStorage::WRITE);
             SFM_Result << "E" << E;
-            SFM_Result << "points1" << points1;
-            SFM_Result << "points2" << points2;
+            //SFM_Result << "points1" << points1;
+            //SFM_Result << "points2" << points2;
             SFM_Result << "K" << K;
             SFM_Result << "R" << R;
             SFM_Result << "t" << t;
@@ -105,7 +105,7 @@ void SFM_Reconstruction::Reconstruction3D(Mat *data_frame1, Mat *data_frame2, Ma
             frame1.copyTo(frame4( r1 ));
             frame2.copyTo(frame4( r2 ));
             imshow("1-2 frame", frame4);
-            cout << "Not enough keypoints" << endl;
+            cout << " --- Not enough keypoints" << endl;
         }
     } 
     else 
@@ -117,7 +117,7 @@ void SFM_Reconstruction::Reconstruction3D(Mat *data_frame1, Mat *data_frame2, Ma
         frame1.copyTo(frame4( r1 ));
         frame2.copyTo(frame4( r2 ));
         imshow("1-2 frame", frame4);
-        cout <<"No keypoints found in one of the frames" << endl;
+        cout <<" --- No keypoints found in one of the frames" << endl;
     }
 }
 
@@ -210,6 +210,7 @@ void SFM_Reconstruction::Reconstruction3DopticFlow(Mat *data_frame1, Mat *data_f
         frame.copyTo(frame4( r1 ));
         data_frame2->copyTo(frame4( r2 ));
         imshow("1-2 frame", frame4);
+        cout << " --- Not enough frames" << endl;
     }
 }
 
@@ -300,7 +301,7 @@ unsigned long SFM_Reconstruction::Match_find_SIFT( vector< KeyPoint > kpf1,
         }
     }
     
-    cout << " --- Temp : " << temp << endl;
+    cout << " --- Number of similar keypoints found : " << temp << endl;
     return temp;
 }
 
