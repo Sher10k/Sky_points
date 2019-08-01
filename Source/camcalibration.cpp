@@ -192,8 +192,8 @@ void CalibrationCamera::calibrCameraChess(int _numCornersHor,
     { 
         cameraMatrix(0, 0) = 600;  // fx
         cameraMatrix(1, 1) = 600;  // fy
-        cameraMatrix(0, 2) = 320;  // Cx, half of width frame
-        cameraMatrix(1, 2) = 240;  // Cy, half of hight frame
+        cameraMatrix(0, 2) = width_frame / 2;  // Cx, half of width frame
+        cameraMatrix(1, 2) = height_frame / 2;  // Cy, half of height frame
         cameraMatrix(2, 2) = 1;
         for (int i = 0; i < 5; i++) distCoeffs(0, i) = 0.0; // k1 k2 p1 p2 k3
         rvecs.clear();
@@ -354,8 +354,8 @@ void CalibrationCamera::calibrCameraChArUco(int _numrCellX,             // 11, d
     { 
         cameraMatrix(0, 0) = 600;  // fx
         cameraMatrix(1, 1) = 600;  // fy
-        cameraMatrix(0, 2) = 320;  // Cx, half of width frame
-        cameraMatrix(1, 2) = 240;  // Cy, half of hight frame
+        cameraMatrix(0, 2) = width_frame / 2;  // Cx, half of width frame
+        cameraMatrix(1, 2) = height_frame / 2;  // Cy, half of height frame
         cameraMatrix(2, 2) = 1;
         for (int i = 0; i < 5; i++) distCoeffs(0, i) = 0.0; // k1 k2 p1 p2 k3
         rvecs.clear();
