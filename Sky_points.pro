@@ -31,6 +31,7 @@ else: unix:!android: target.path = /opt/$${TARGET}/bin
 CONFIG      *= link_pkgconfig
 PKGCONFIG   *= opencv4
 PKGCONFIG   *= metslib
+PKGCONFIG   *= zcm
 
 PKGCONFIG   += pcl_2d-1.9
 PKGCONFIG   += pcl_common-1.9

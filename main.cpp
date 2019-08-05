@@ -15,13 +15,19 @@
 #define CERES_FOUND true
 #define OPENCV_TRAITS_ENABLE_DEPRECATED
 //#define EIGEN_RUNTIME_NO_MALLOC
+//#define ZCM_EMBEDDED
 
 #include <iostream>
+#include <stdio.h>
+//#include <unistd.h>
+//#include <sys/time.h>
 //#include <string>
-//#include <stdio.h>
 //#include <thread>
 
 #include <Eigen/Eigen>
+
+#include <zcm/zcm.h>
+#include <zcm/zcm-cpp.hpp>
 
 #include <opencv2/core.hpp>
 #include <opencv2/core/mat.hpp>
@@ -68,6 +74,7 @@ using namespace cv::sfm;
 using namespace cv::xfeatures2d;
 using namespace pcl;
 using namespace Eigen;
+using namespace zcm;
 
 #define FRAME_WIDTH 640     // 320, 640, (640, 1280)
 #define FRAME_HEIGHT 480    // 240, 480, (360, 720)
@@ -126,6 +133,17 @@ void drawCamera( boost::shared_ptr < visualization::PCLVisualizer > &view,
 
 int main(int argc, char *argv[])  //int argc, char *argv[]
 {
+    //system("ls -ls");
+    
+    //string zcm_channel = "SLZcmCameraBaslerJpegFrame";
+    //const char address[] = "ipc";
+    
+    //zcm_t *zcm = zcm_create("ipc");
+    //zcm_t zcm;
+    //ZCM zcm;
+    //if (!zcm.good()) return 1;
+    
+    
     //-------------------------------------- VARIABLES ------------------------------------------//
     Mat frameRAW, frame, frame2, frameCache;
     frameCache *= 0;
@@ -159,6 +177,12 @@ int main(int argc, char *argv[])  //int argc, char *argv[]
     cam[cloud_flag].view[1] = 0;
     cam[cloud_flag].view[2] = 1;
     drawCamera( viewer, & cam, Scalar(0,0,255), & Rt ,cloud_flag );
+    
+    Matrix4d RTE = Rt[ cloud_flag ];
+    Mat rvec1, Rcache, tcache;
+    rvec1 = Mat::zeros( 3, 1, CV_32FC1 );
+    Rcache = Mat::ones( 3, 3, CV_32FC1 );
+    tcache = Mat::zeros( 3, 1, CV_32FC1 );
     
         // Other variables
     int f = 2;              // Переключение в режим калибровки
@@ -243,23 +267,49 @@ int main(int argc, char *argv[])  //int argc, char *argv[]
             if ( button_nf == 32 )             // If press "space"
             {
                     // SFM reconstruction
-                //MySFM.Reconstruction3D( & frameCache, & frame, Calib.cameraMatrix );    // Put old frame then new frame
-                MySFM.Reconstruction3DopticFlow( & frameCache, & frame, Calib.cameraMatrix );
+                MySFM.Reconstruction3D( & frameCache, & frame, Calib.cameraMatrix );    // Put old frame then new frame
+                //MySFM.Reconstruction3DopticFlow( & frameCache, & frame, Calib.cameraMatrix );
                 
                 if (!MySFM.points3D.empty())
                 {
                     Scalar color = Scalar( rng.uniform(0, 255), rng.uniform(0,255), rng.uniform(0,255) );
                     cloud_flag++;
                     Rt.push_back( Rt[ cloud_flag - 1 ] );
+                    
                     Matrix4d tempRt;
+//                    tempRt << MySFM.R.at<double>(0, 0), MySFM.R.at<double>(0, 1), -MySFM.R.at<double>(0, 2), -MySFM.t.at<double>(0, 0),
+//                              MySFM.R.at<double>(1, 0), MySFM.R.at<double>(1, 1), -MySFM.R.at<double>(1, 2), -MySFM.t.at<double>(0, 1),
+//                              -MySFM.R.at<double>(2, 0), -MySFM.R.at<double>(2, 1), MySFM.R.at<double>(2, 2), MySFM.t.at<double>(0, 2),
+//                              0,                        0,                        0,                        1;
                     tempRt << MySFM.R.at<double>(0, 0), MySFM.R.at<double>(0, 1), -MySFM.R.at<double>(0, 2), -MySFM.t.at<double>(0, 0),
                               MySFM.R.at<double>(1, 0), MySFM.R.at<double>(1, 1), -MySFM.R.at<double>(1, 2), -MySFM.t.at<double>(0, 1),
                               -MySFM.R.at<double>(2, 0), -MySFM.R.at<double>(2, 1), MySFM.R.at<double>(2, 2), MySFM.t.at<double>(0, 2),
                               0,                        0,                        0,                        1;
+                    
+                    Mat rvec2, Rtemp, ttemp;
+                    Rtemp = MySFM.R;
+                    ttemp = MySFM.t;
+                    Rodrigues( Rtemp, rvec2 );
+                    composeRT( rvec2, ttemp, rvec1, tcache, rvec1, tcache );
+                    rvec1.at<double>(0,0) = -rvec1.at<double>(0,0);
+                    rvec1.at<double>(1,0) = -rvec1.at<double>(1,0);
+                    tcache.at<double>(0,0) = -tcache.at<double>(0,0);
+                    tcache.at<double>(1,0) = -tcache.at<double>(1,0);
+                    Rodrigues( rvec1, Rcache );
+                    
                     cout << "tempRt[ " << cloud_flag << " ]= " << endl 
                          << tempRt << endl;
-                    Rt[ cloud_flag ] = Rt[ cloud_flag ] * tempRt;
-                    //Rt[ cloud_flag ] = tempRt * Rt[ cloud_flag ] ;
+                    //Rt[ cloud_flag ] = Rt[ cloud_flag ] * tempRt;
+                    //Rt[ cloud_flag ] = tempRt * Rt[ cloud_flag ];
+                    //RTE = RTE * tempRt;
+                    RTE = tempRt * RTE;
+                    cout << "RTE[ " << cloud_flag << " ]= " << endl 
+                         << RTE << endl;
+                    Rt[ cloud_flag ] << Rcache.at<double>(0, 0), Rcache.at<double>(0, 1), Rcache.at<double>(0, 2), tcache.at<double>(0, 0),
+                                        Rcache.at<double>(1, 0), Rcache.at<double>(1, 1), Rcache.at<double>(1, 2), tcache.at<double>(0, 1),
+                                        Rcache.at<double>(2, 0), Rcache.at<double>(2, 1), Rcache.at<double>(2, 2), tcache.at<double>(0, 2),
+                                        0,                       0,                       0,                       1;
+                    
                     cout << "Rt[ " << cloud_flag << " ]= " << endl 
                          << Rt[ cloud_flag ] << endl;
                     
@@ -277,9 +327,9 @@ int main(int argc, char *argv[])  //int argc, char *argv[]
                                        MySFM.points3D.at< double >(2, static_cast<int>(i)),
                                        MySFM.points3D.at< double >(3, static_cast<int>(i));
                         temp3Dpoint = Rt[ cloud_flag - 1 ] * temp3Dpoint;
-                        cloud.points[i].x = static_cast<float>(temp3Dpoint(0));  // (float)
-                        cloud.points[i].y = static_cast<float>(temp3Dpoint(1));
-                        cloud.points[i].z = static_cast<float>(temp3Dpoint(2));
+                        cloud.points[i].x = float(temp3Dpoint(0));
+                        cloud.points[i].y = float(temp3Dpoint(1));
+                        cloud.points[i].z = float(temp3Dpoint(2));
                         cloud.points[i].r = static_cast< uint8_t >( MySFM.points3D_BGR.at(i)[2] );
                         cloud.points[i].g = static_cast< uint8_t >( MySFM.points3D_BGR.at(i)[1] );
                         cloud.points[i].b = static_cast< uint8_t >( MySFM.points3D_BGR.at(i)[0] );

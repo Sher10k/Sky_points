@@ -61,6 +61,7 @@ void SFM_Reconstruction::Reconstruction3D(Mat *data_frame1, Mat *data_frame2, Ma
 //--- STEP 3 --- Find essential matrix
         if (numKeypoints > 7)
         {
+            Essen_mask *= 0;
             E = findEssentialMat(points1, points2, K, RANSAC, 0.999, 1.0, Essen_mask);
 //--- STEP 4 --- Decompose essential matrix
             recoverPose(E, points1, points2, K, R, t, 10, Essen_mask, points3D);
@@ -128,7 +129,6 @@ void SFM_Reconstruction::Reconstruction3DopticFlow(Mat *data_frame1, Mat *data_f
     points3D_BGR.clear();
     R *= 0;
     t *= 0;
-    //frame4 = Mat::zeros(Size(2 * width_frame, height_frame), CV_8UC3);          //  data_frame2->type()
     Mat frame = Mat::zeros(Size(width_frame, height_frame), CV_8UC3);           // data_frame2->type()
     flow = Mat::zeros(Size(width_frame, height_frame), CV_32FC2);
     if ((!data_frame1->empty()) && (!data_frame2->empty()))
@@ -160,16 +160,17 @@ void SFM_Reconstruction::Reconstruction3DopticFlow(Mat *data_frame1, Mat *data_f
         //waitKey(10);
         
 //--- STEP 2 --- Find essential matrix --------------------------------------//
+        Essen_mask *= 0;
         E = findEssentialMat(points1, points2, K, RANSAC, 0.999, 1.0, Essen_mask);
         
 //--- STEP 3 --- Calculation of 3d points -----------------------------------//
-        recoverPose(E, points1, points2, K, R, t, 10, noArray(), points3D);
+        recoverPose(E, points1, points2, K, R, t, 10, Essen_mask, points3D);
         
         for (int i = 0; i < points3D.cols; i++)
         {
             //cout << "3Dpoint[ " << i << " ] =";
             for (int j = 0; j < points3D.rows; j++){
-                points3D.at<double>(j, i) /= points3D.at<double>(3, i);
+                points3D.at< double >(j, i) /= points3D.at< double >(3, i);
                 //cout << " " << points3D.at<double>(j, i) << " ";
             }
             points3D_BGR.push_back( Scalar( (data_frame1->at<Vec3b>(points1.at(static_cast<size_t>(i)))[0] + 
@@ -193,19 +194,10 @@ void SFM_Reconstruction::Reconstruction3DopticFlow(Mat *data_frame1, Mat *data_f
         SFM_Result.release();
         cout << " --- SFM_Result written into file: SFM_Result_opticflow.txt" << endl;
         
-//        Rect r1(0, 0, frame.cols, frame.rows);
-//        Rect r2(data_frame2->cols, 0, data_frame2->cols, data_frame2->rows);
-//        frame.copyTo(frame4( r1 ));
-//        data_frame2->copyTo(frame4( r2 ));
         imshow("SFM-result", frame);
     }
     else
     {   
-//        Rect r1(0, 0, frame.cols, frame.rows);
-//        Rect r2(data_frame2->cols, 0, data_frame2->cols, data_frame2->rows);
-//        frame.copyTo(frame4( r1 ));
-//        data_frame2->copyTo(frame4( r2 ));
-//        imshow("SFM-result", *data_frame2);
         cout << " --- Not enough frames" << endl;
     }
 }
