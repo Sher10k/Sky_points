@@ -342,13 +342,13 @@ void CalibrationCamera::calibrCameraChArUco(int _numrCellX,             // 11, d
     if ( (batton_calib == 114) || (batton_calib == 82) )  // Read from file
     {
         FileStorage fs; 
-        fs.open("Calibrate_cam_ChArUco_Logitech.txt", FileStorage::READ);     // Read from file data calibration
+        fs.open("Calibrate_cam_ChArUco.txt", FileStorage::READ);     // Read from file data calibration  Calibrate_cam_ChArUco_Logitech
         fs["intrinsic"] >> cameraMatrix;
         fs["distCoeffs"] >> distCoeffs;
         fs["rvecs"] >> rvecs;
         fs["tvecs"] >> tvecs;
         fs.release();
-        cout << " --- Calibration data read frome file: Calibrate_cam_ChArUco_Logitech.txt" << endl << endl;
+        cout << " --- Calibration data read frome file: Calibrate_cam_ChArUco.txt" << endl << endl;
     }
     else if ((batton_calib == 48) || (batton_calib == 27))    // use default parameters  
     { 

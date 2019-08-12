@@ -39,8 +39,6 @@ private:
                                    vector< KeyPoint > *,
                                    vector< KeyPoint > *,
                                    vector< DMatch > *);
-    void drawKeyPoints( Mat *, 
-                        vector< KeyPoint > *);
     
 public:
     
@@ -68,6 +66,9 @@ public:
     Mat Essen_mask;
     Mat R, t;
     
+        // Fundamental matrix
+    Mat F = Mat( 3, 3, CV_32FC1);
+    
         // 3D points
     Mat points3D;
     vector < Scalar > points3D_BGR;
@@ -93,6 +94,8 @@ public:
     void Reconstruction3DopticFlow(Mat *, Mat *, Matx33d);
     void opticalFlow(Mat *, Mat *, int, int);
     void destroyWinSFM();
+    void drawKeyPoints( Mat *, 
+                        vector< KeyPoint > *);
     
 };
 

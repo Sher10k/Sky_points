@@ -21,7 +21,8 @@ void SFM_Reconstruction::setParam(VideoCapture *data_CAP)
 
 void SFM_Reconstruction::Reconstruction3D(Mat *data_frame1, Mat *data_frame2, Matx33d K)
 {
-    points3D *= 0;
+    //points3D *= 0;
+    points3D.release();
     points3D_BGR.clear();
     R *= 0;
     t *= 0;
@@ -61,37 +62,47 @@ void SFM_Reconstruction::Reconstruction3D(Mat *data_frame1, Mat *data_frame2, Ma
 //--- STEP 3 --- Find essential matrix
         if (numKeypoints > 7)
         {
-            Essen_mask *= 0;
+            //Essen_mask *= 0;
+            Essen_mask = Mat::ones( Size( 1, int(numKeypoints)), Essen_mask.type());
             E = findEssentialMat(points1, points2, K, RANSAC, 0.999, 1.0, Essen_mask);
+            F = findFundamentalMat(points1, points2, FM_RANSAC, 3, 0.99);
+            correctMatches(F, points1, points2, points1, points2);
 //--- STEP 4 --- Decompose essential matrix
             recoverPose(E, points1, points2, K, R, t, 10, Essen_mask, points3D);
             
             for (int i = 0; i < points3D.cols; i++)
             {
-                //cout << "3Dpoint[ " << i << " ] =";
-                for (int j = 0; j < points3D.rows; j++)
+                if ( Essen_mask.at<uchar>(i) == 1 )
                 {
-                    points3D.at<double>(j, i) /= points3D.at<double>(3, i);
-                    //cout << " " << points3D.at<double>(j, i) << " ";
+                    //cout << "3Dpoint[ " << i << " ] =";
+                    for (int j = 0; j < points3D.rows; j++)
+                    {
+                        points3D.at< double >(j, i) /= points3D.at< double >(3, i);
+                        //cout << " " << points3D.at<double>(j, i) << " ";
+                    }
+//                    if ( (points1[size_t(i)].x > 0) && (points1[size_t(i)].y > 0) && 
+//                         (points2[size_t(i)].x > 0) && (points2[size_t(i)].y > 0) )
+                        points3D_BGR.push_back( Scalar( (data_frame1->at<Vec3b>(points1.at(static_cast<size_t>(i)))[0] + 
+                                                     data_frame2->at<Vec3b>(points2.at(static_cast<size_t>(i)))[0] ) / 2,
+                                                    (data_frame1->at<Vec3b>(points1.at(static_cast<size_t>(i)))[1] + 
+                                                     data_frame2->at<Vec3b>(points2.at(static_cast<size_t>(i)))[1] ) / 2,
+                                                    (data_frame1->at<Vec3b>(points1.at(static_cast<size_t>(i)))[2] + 
+                                                     data_frame2->at<Vec3b>(points2.at(static_cast<size_t>(i)))[2] ) / 2 ) );
+                    //cout << endl;
                 }
-                points3D_BGR.push_back( Scalar( (data_frame1->at<Vec3b>(points1.at(static_cast<size_t>(i)))[0] + 
-                                                 data_frame2->at<Vec3b>(points2.at(static_cast<size_t>(i)))[0] ) / 2,
-                                                (data_frame1->at<Vec3b>(points1.at(static_cast<size_t>(i)))[1] + 
-                                                 data_frame2->at<Vec3b>(points2.at(static_cast<size_t>(i)))[1] ) / 2,
-                                                (data_frame1->at<Vec3b>(points1.at(static_cast<size_t>(i)))[2] + 
-                                                 data_frame2->at<Vec3b>(points2.at(static_cast<size_t>(i)))[2] ) / 2 ) );
-                //cout << endl;
             }
             
             FileStorage SFM_Result;
             SFM_Result.open("SFM_Result.txt", FileStorage::WRITE);
             SFM_Result << "E" << E;
+            SFM_Result << "F" << F;
             //SFM_Result << "points1" << points1;
             //SFM_Result << "points2" << points2;
             SFM_Result << "K" << K;
             SFM_Result << "R" << R;
             SFM_Result << "t" << t;
             SFM_Result << "points3D" << points3D;
+            SFM_Result << "Essen_mask" << Essen_mask;
             SFM_Result.release();
             cout << " --- SFM_Result written into file: SFM_Result.txt" << endl;
             
@@ -125,7 +136,8 @@ void SFM_Reconstruction::Reconstruction3D(Mat *data_frame1, Mat *data_frame2, Ma
 
 void SFM_Reconstruction::Reconstruction3DopticFlow(Mat *data_frame1, Mat *data_frame2, Matx33d K)
 {
-    points3D *= 0;
+    //points3D *= 0;
+    points3D.release();
     points3D_BGR.clear();
     R *= 0;
     t *= 0;
@@ -160,8 +172,11 @@ void SFM_Reconstruction::Reconstruction3DopticFlow(Mat *data_frame1, Mat *data_f
         //waitKey(10);
         
 //--- STEP 2 --- Find essential matrix --------------------------------------//
-        Essen_mask *= 0;
+        //Essen_mask *= 0;
+        Essen_mask = Mat::ones( Size( 1, int(numKeypoints)), Essen_mask.type());
         E = findEssentialMat(points1, points2, K, RANSAC, 0.999, 1.0, Essen_mask);
+        F = findFundamentalMat(points1, points2, FM_RANSAC, 3, 0.99);
+        correctMatches(F, points1, points2, points1, points2);
         
 //--- STEP 3 --- Calculation of 3d points -----------------------------------//
         recoverPose(E, points1, points2, K, R, t, 10, Essen_mask, points3D);
@@ -173,7 +188,9 @@ void SFM_Reconstruction::Reconstruction3DopticFlow(Mat *data_frame1, Mat *data_f
                 points3D.at< double >(j, i) /= points3D.at< double >(3, i);
                 //cout << " " << points3D.at<double>(j, i) << " ";
             }
-            points3D_BGR.push_back( Scalar( (data_frame1->at<Vec3b>(points1.at(static_cast<size_t>(i)))[0] + 
+//            if ( (points1[size_t(i)].x > 0) && (points1[size_t(i)].y > 0) && 
+//                 (points2[size_t(i)].x > 0) && (points2[size_t(i)].y > 0) )
+                points3D_BGR.push_back( Scalar( (data_frame1->at<Vec3b>(points1.at(static_cast<size_t>(i)))[0] + 
                                              data_frame2->at<Vec3b>(points2.at(static_cast<size_t>(i)))[0] ) / 2,
                                             (data_frame1->at<Vec3b>(points1.at(static_cast<size_t>(i)))[1] + 
                                              data_frame2->at<Vec3b>(points2.at(static_cast<size_t>(i)))[1] ) / 2,
@@ -185,12 +202,14 @@ void SFM_Reconstruction::Reconstruction3DopticFlow(Mat *data_frame1, Mat *data_f
         FileStorage SFM_Result;
         SFM_Result.open("SFM_Result_opticflow.txt", FileStorage::WRITE);
         SFM_Result << "E" << E;
+        SFM_Result << "F" << F;
         //SFM_Result << "points1" << points1;
         //SFM_Result << "points2" << points2;
         SFM_Result << "K" << K;
         SFM_Result << "R" << R;
         SFM_Result << "t" << t;
         SFM_Result << "points3D" << points3D;
+        SFM_Result << "Essen_mask" << Essen_mask;
         SFM_Result.release();
         cout << " --- SFM_Result written into file: SFM_Result_opticflow.txt" << endl;
         
@@ -205,7 +224,8 @@ void SFM_Reconstruction::Reconstruction3DopticFlow(Mat *data_frame1, Mat *data_f
 
 void SFM_Reconstruction::opticalFlow(Mat *f, Mat *fc, int win, int vecS)
 {
-    img2Original = *f;
+    (*f).copyTo(img2Original);
+    //img2Original = *f;
     flow = Mat(img2Original.cols, img2Original.rows, CV_32FC2);
     cvtColor(*f, frameGREY, COLOR_BGR2GRAY);
     cvtColor(*fc, frameCacheGREY, COLOR_BGR2GRAY);

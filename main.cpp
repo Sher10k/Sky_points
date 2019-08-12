@@ -63,7 +63,7 @@
 #include <pcl/visualization/pcl_visualizer.h>
 //#include <pcl/visualization/cloud_viewer.h>
 
-//#include <boost/thread/thread.hpp>
+#include <boost/thread/thread.hpp>
 
 #include "Header/camcalibration.h"
 #include "Header/sfm_train.h"
@@ -80,6 +80,8 @@ using namespace zcm;
 #define FRAME_HEIGHT 480    // 240, 480, (360, 720)
 #define VIEWER_WIN_WIDTH 640
 #define VIEWER_WIN_HEIGHT 480
+
+#define CAP_VIDEO 0
 
 void drawCamera( boost::shared_ptr < visualization::PCLVisualizer > &view, 
                  vector < visualization::Camera > *camera,
@@ -143,7 +145,6 @@ int main(int argc, char *argv[])  //int argc, char *argv[]
     //ZCM zcm;
     //if (!zcm.good()) return 1;
     
-    
     //-------------------------------------- VARIABLES ------------------------------------------//
     Mat frameRAW, frame, frame2, frameCache;
     frameCache *= 0;
@@ -154,6 +155,7 @@ int main(int argc, char *argv[])  //int argc, char *argv[]
     PointCloud < PointXYZRGB > cloud;
     PointCloud < PointXYZRGB > ::Ptr cloud2 ( new PointCloud < PointXYZRGB > );
     boost::shared_ptr < visualization::PCLVisualizer > viewer ( new visualization::PCLVisualizer ("3D Viewer") );
+    
     vector < visualization::Camera > cam;
     viewer->setBackgroundColor(0, 0, 0);
     viewer->addCoordinateSystem(1.0, "global");
@@ -191,9 +193,45 @@ int main(int argc, char *argv[])  //int argc, char *argv[]
     Matx33d K_1;
     RNG rng(12345);
     
+
+//    while(1)
+//    {
+//        capture >> frame;
+//        if(frame.empty())
+//            break;
+        
+//        cout << "MSEC = " << capture.get(CAP_PROP_POS_MSEC) << endl;
+        
+//        Ptr< SIFT > dSIFT = xfeatures2d::SIFT::create();             // 0, 4, 0.04, 10, 1.6
+//        vector< KeyPoint > kp1SIFT, kp2SIFT;                // Key points
+//        Mat des1SIFT, des2SIFT;                           // Descriptors key points
+//        unsigned long nKp;                                         // Number key points
+//        dSIFT->detectAndCompute( frame, cv::noArray(), kp1SIFT, des1SIFT );
+//        //trainSFM.drawKeyPoints( &frame, &kp1SIFT );
+        
+//        if ( !frameCache.empty() )
+//        {
+//            trainSFM.opticalFlow( &frame, &frameCache, 1, 1 );
+//            imshow("OpticalFlow", trainSFM.img2Original);
+//        }
+//        frame.copyTo(frameCache);
+        
+//        imshow("w", frame);
+//        click = waitKey(0);
+//        if( click == 27 ) {
+//            break;
+//        }
+//    }
+//    waitKey(0); // key press to close window
+    
+    
+    
+    
     //-------------------------------------- Initialize VIDEOCAPTURE ----------------------------//
+#if ( CAP_VIDEO == 0 ) 
+    
     VideoCapture cap;
-    int deviceID = 1;                   //  camera 1
+    int deviceID = 0;                   //  camera 1
     int apiID = cv::CAP_ANY;            //  0 = autodetect default API
     cap.open(deviceID + apiID);         //  Open camera
     if(!cap.isOpened()) {               // Check if we succeeded
@@ -231,16 +269,37 @@ int main(int argc, char *argv[])  //int argc, char *argv[]
         fps  = num_frames / seconds * 1000;
         cout << "Estimated frames per second : " << fps << endl;*/
     }
+#elif ( CAP_VIDEO == 1 ) 
+    string file_dir = "/home/roman/Video_SFM/";
+    string file_name = "SFM_video_003.mp4";
+    VideoCapture cap( file_dir + file_name );
+    if( !cap.isOpened() )
+            throw "Error when reading " + file_name;
+    cap.set(CAP_PROP_POS_MSEC, 9000);
+//    cap.set(CAP_PROP_FRAME_WIDTH, FRAME_WIDTH);     // 320, 640, (640, 1280)
+//    cap.set(CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT);   // 240, 480, (360, 720)
+    cout << " --- VideoCapture" <<endl
+         << "CAP = " << cap.getBackendName() << endl
+         << "MSEC = " << cap.get(CAP_PROP_POS_MSEC) << endl
+         << "Width = " << cap.get(CAP_PROP_FRAME_WIDTH) << endl
+         << "Height = " << cap.get(CAP_PROP_FRAME_HEIGHT) << endl
+         << "FPS = " << cap.get(CAP_PROP_FPS) << endl
+         << "Code of codec = " << cap.get(CAP_PROP_FOURCC) << endl
+         << "Number of frames = " << cap.get(CAP_PROP_FRAME_COUNT) << endl
+         << "Format Mat = " << cap.get(CAP_PROP_FORMAT) << endl
+         << " --- " <<endl;
+    //namedWindow( "w", 1);
+#endif // CAP_VIDEO   
     
     //-------------------------------------- Initialize calibration -----------------------------//
-    CalibrationCamera Calib(&cap);
+    CalibrationCamera Calib( &cap );
     Calib.Read_from_file(0);
     Calib.printParam();
     f = 1;
     Matrix3d K;
-    cv2eigen(Calib.cameraMatrix, K);
+    cv2eigen( Calib.cameraMatrix, K );
     //-------------------------------------- Initialize SFM -------------------------------------//
-    SFM_Reconstruction MySFM(&cap);
+    SFM_Reconstruction MySFM( &cap );
     
     
     //------------------------------------------ START ------------------------------------------//
@@ -263,12 +322,17 @@ int main(int argc, char *argv[])  //int argc, char *argv[]
             fR.copyTo(frame2( r2 ));
             imshow( "Real time", frame2 );
             
+#if ( CAP_VIDEO == 0 ) 
             int button_nf = waitKey(1);
+#elif ( CAP_VIDEO == 1 ) 
+            int button_nf = 32;
+            waitKey(20);
+#endif // CAP_VIDEO  
             if ( button_nf == 32 )             // If press "space"
             {
                     // SFM reconstruction
-                MySFM.Reconstruction3D( & frameCache, & frame, Calib.cameraMatrix );    // Put old frame then new frame
-                //MySFM.Reconstruction3DopticFlow( & frameCache, & frame, Calib.cameraMatrix );
+                //MySFM.Reconstruction3D( & frameCache, & frame, Calib.cameraMatrix );    // Put old frame then new frame
+                MySFM.Reconstruction3DopticFlow( & frameCache, & frame, Calib.cameraMatrix );
                 
                 if (!MySFM.points3D.empty())
                 {
@@ -276,40 +340,58 @@ int main(int argc, char *argv[])  //int argc, char *argv[]
                     cloud_flag++;
                     Rt.push_back( Rt[ cloud_flag - 1 ] );
                     
-                    Matrix4d tempRt;
-//                    tempRt << MySFM.R.at<double>(0, 0), MySFM.R.at<double>(0, 1), -MySFM.R.at<double>(0, 2), -MySFM.t.at<double>(0, 0),
-//                              MySFM.R.at<double>(1, 0), MySFM.R.at<double>(1, 1), -MySFM.R.at<double>(1, 2), -MySFM.t.at<double>(0, 1),
-//                              -MySFM.R.at<double>(2, 0), -MySFM.R.at<double>(2, 1), MySFM.R.at<double>(2, 2), MySFM.t.at<double>(0, 2),
-//                              0,                        0,                        0,                        1;
-                    tempRt << MySFM.R.at<double>(0, 0), MySFM.R.at<double>(0, 1), -MySFM.R.at<double>(0, 2), -MySFM.t.at<double>(0, 0),
-                              MySFM.R.at<double>(1, 0), MySFM.R.at<double>(1, 1), -MySFM.R.at<double>(1, 2), -MySFM.t.at<double>(0, 1),
-                              -MySFM.R.at<double>(2, 0), -MySFM.R.at<double>(2, 1), MySFM.R.at<double>(2, 2), MySFM.t.at<double>(0, 2),
-                              0,                        0,                        0,                        1;
-                    
+                        // Save temporary value Rt into Rcache and tcache
                     Mat rvec2, Rtemp, ttemp;
                     Rtemp = MySFM.R;
                     ttemp = MySFM.t;
+                        // Combines two rotation-and-shift transformations
+//                    Rodrigues( Rtemp, rvec2 );
+//                    composeRT( rvec2, ttemp, rvec1, tcache, rvec1, tcache );
+//                    Rodrigues( rvec1, Rcache );
+//                    Matrix4d tempRt;
+//                    tempRt << Rcache.at<double>(0, 0), Rcache.at<double>(0, 1), Rcache.at<double>(0, 2), tcache.at<double>(0, 0),
+//                              Rcache.at<double>(1, 0), Rcache.at<double>(1, 1), Rcache.at<double>(1, 2), tcache.at<double>(0, 1),
+//                              Rcache.at<double>(2, 0), Rcache.at<double>(2, 1), Rcache.at<double>(2, 2), tcache.at<double>(0, 2),
+//                              0,                       0,                       0,                       1;
+//                    Mat Rt_1;
+//                    eigen2cv( tempRt, Rt_1 );
+//                    invert( Rt_1, Rt_1, DECOMP_LU );
+                    Matrix4d tempRt;
+                    tempRt << Rtemp.at<double>(0, 0), Rtemp.at<double>(0, 1), Rtemp.at<double>(0, 2), ttemp.at<double>(0, 0),
+                              Rtemp.at<double>(1, 0), Rtemp.at<double>(1, 1), Rtemp.at<double>(1, 2), ttemp.at<double>(0, 1),
+                              Rtemp.at<double>(2, 0), Rtemp.at<double>(2, 1), Rtemp.at<double>(2, 2), ttemp.at<double>(0, 2),
+                              0,                      0,                      0,                      1;                    
+                    
+                    cout << "Rt_temp = " << endl << tempRt << endl;
+                    Mat Rt_1;
+                    eigen2cv( tempRt, Rt_1 );
+                    invert( Rt_1, Rt_1, DECOMP_LU );
+                    for ( int i = 0; i < 3; i++ )
+                    {
+                        for ( int j = 0; j < 3; j++ )
+                        {
+                            Rtemp.at<double>(i, j) = Rt_1.at<double>(i, j);
+                        }
+                    }
+                    for ( int j = 0; j < 3; j++ )
+                    {
+                        ttemp.at<double>(j, 0) = Rt_1.at<double>(j, 3);
+                    }
+//                    Rtemp = Rt_1( Range(0, 3), Range(0, 3) );
+//                    ttemp = Rt_1( Range(3, 4), Range(0, 3) );
+//                    ttemp = ttemp.t();
+                    
                     Rodrigues( Rtemp, rvec2 );
-                    composeRT( rvec2, ttemp, rvec1, tcache, rvec1, tcache );
-                    rvec1.at<double>(0,0) = -rvec1.at<double>(0,0);
-                    rvec1.at<double>(1,0) = -rvec1.at<double>(1,0);
-                    tcache.at<double>(0,0) = -tcache.at<double>(0,0);
-                    tcache.at<double>(1,0) = -tcache.at<double>(1,0);
-                    Rodrigues( rvec1, Rcache );
-                    
-                    cout << "tempRt[ " << cloud_flag << " ]= " << endl 
-                         << tempRt << endl;
-                    //Rt[ cloud_flag ] = Rt[ cloud_flag ] * tempRt;
-                    //Rt[ cloud_flag ] = tempRt * Rt[ cloud_flag ];
-                    //RTE = RTE * tempRt;
-                    RTE = tempRt * RTE;
-                    cout << "RTE[ " << cloud_flag << " ]= " << endl 
-                         << RTE << endl;
-                    Rt[ cloud_flag ] << Rcache.at<double>(0, 0), Rcache.at<double>(0, 1), Rcache.at<double>(0, 2), tcache.at<double>(0, 0),
-                                        Rcache.at<double>(1, 0), Rcache.at<double>(1, 1), Rcache.at<double>(1, 2), tcache.at<double>(0, 1),
-                                        Rcache.at<double>(2, 0), Rcache.at<double>(2, 1), Rcache.at<double>(2, 2), tcache.at<double>(0, 2),
-                                        0,                       0,                       0,                       1;
-                    
+                    composeRT( rvec2, ttemp, rvec1, tcache, rvec2, ttemp );
+                    Rodrigues( rvec2, Rtemp );
+                    rvec1 = rvec2;
+                    tcache = ttemp;
+                    tempRt << Rtemp.at<double>(0, 0), Rtemp.at<double>(0, 1), Rtemp.at<double>(0, 2), ttemp.at<double>(0, 0),
+                              Rtemp.at<double>(1, 0), Rtemp.at<double>(1, 1), Rtemp.at<double>(1, 2), ttemp.at<double>(0, 1),
+                              Rtemp.at<double>(2, 0), Rtemp.at<double>(2, 1), Rtemp.at<double>(2, 2), ttemp.at<double>(0, 2),
+                              0,                      0,                      0,                      1;
+                    cout << "Rt_temp_1 = " << endl << Rt_1 << endl;
+                    Rt[ cloud_flag ] = tempRt;
                     cout << "Rt[ " << cloud_flag << " ]= " << endl 
                          << Rt[ cloud_flag ] << endl;
                     
@@ -357,7 +439,7 @@ int main(int argc, char *argv[])  //int argc, char *argv[]
                     
                         // Draw camera
                     cam.push_back(cam[ cloud_flag - 1 ]);
-                    drawCamera( viewer, & cam, color, & Rt ,cloud_flag );
+                    drawCamera( viewer, & cam, color, & Rt, cloud_flag );
                     
 //                    viewer->updatePointCloud<pcl::PointXYZ>(cloud2, "sample cloud");
 //                    pcl::io::loadPCDFile("test_pcd.pcd", *cloud2);  // test_pcd.pcd
@@ -410,8 +492,8 @@ int main(int argc, char *argv[])  //int argc, char *argv[]
             frame.copyTo(frameCache);*/
         }                                               // END Main loop -------------------------------------------//
         else if ( f == 2 ) {                            // Калибровка камеры  press "с" or "C"----------------------//      step 0
-            //Calib.calibrCameraChess(10, 7, 10);    // 8, 6
-            Calib.calibrCameraChArUco(11, 8, 10, 7, 10, 10);
+            Calib.calibrCameraChess(10, 7, 10);    // 8, 6
+            //Calib.calibrCameraChArUco(11, 8, 10, 7, 10, 10);
             Calib.printParam();
             cv2eigen(Calib.cameraMatrix, K);
             invert(Calib.cameraMatrix, K_1, DECOMP_LU);
