@@ -62,33 +62,34 @@ void SFM_Reconstruction::Reconstruction3D(Mat *data_frame1, Mat *data_frame2, Ma
 //--- STEP 3 --- Find essential matrix
         if (numKeypoints > 7)
         {
-            //Essen_mask *= 0;
             Essen_mask = Mat::ones( Size( 1, int(numKeypoints)), Essen_mask.type());
-            E = findEssentialMat(points1, points2, K, RANSAC, 0.999, 1.0, Essen_mask);
-            F = findFundamentalMat(points1, points2, FM_RANSAC, 3, 0.99);
+            E = findEssentialMat(points1, points2, K, RANSAC, 0.999, 3000.0, Essen_mask);
+            F = findFundamentalMat(points1, points2, FM_RANSAC, 3, 0.99, Essen_mask);
             correctMatches(F, points1, points2, points1, points2);
-//--- STEP 4 --- Decompose essential matrix
-            recoverPose(E, points1, points2, K, R, t, 10, Essen_mask, points3D);
             
-            for (int i = 0; i < points3D.cols; i++)
+//--- STEP 4 --- Decompose essential matrix
+            Mat p3D;
+            p3D *= 0;
+            recoverPose(E, points1, points2, K, R, t, 10, Essen_mask, p3D);
+            int numNoZeroMask = countNonZero(Essen_mask);
+            points3D = Mat::zeros( 4, numNoZeroMask, p3D.type() );
+            
+            int k = 0;
+            for (int i = 0; i < p3D.cols; i++)
             {
-                if ( Essen_mask.at<uchar>(i) == 1 )
+                if ( Essen_mask.at< uchar >(i) == 1 )
                 {
-                    //cout << "3Dpoint[ " << i << " ] =";
                     for (int j = 0; j < points3D.rows; j++)
                     {
-                        points3D.at< double >(j, i) /= points3D.at< double >(3, i);
-                        //cout << " " << points3D.at<double>(j, i) << " ";
+                        points3D.at< double >(j, k) = p3D.at< double >(j, k) / p3D.at< double >(3, k);
                     }
-//                    if ( (points1[size_t(i)].x > 0) && (points1[size_t(i)].y > 0) && 
-//                         (points2[size_t(i)].x > 0) && (points2[size_t(i)].y > 0) )
-                        points3D_BGR.push_back( Scalar( (data_frame1->at<Vec3b>(points1.at(static_cast<size_t>(i)))[0] + 
+                    points3D_BGR.push_back( Scalar( (data_frame1->at<Vec3b>(points1.at(static_cast<size_t>(i)))[0] + 
                                                      data_frame2->at<Vec3b>(points2.at(static_cast<size_t>(i)))[0] ) / 2,
                                                     (data_frame1->at<Vec3b>(points1.at(static_cast<size_t>(i)))[1] + 
                                                      data_frame2->at<Vec3b>(points2.at(static_cast<size_t>(i)))[1] ) / 2,
                                                     (data_frame1->at<Vec3b>(points1.at(static_cast<size_t>(i)))[2] + 
                                                      data_frame2->at<Vec3b>(points2.at(static_cast<size_t>(i)))[2] ) / 2 ) );
-                    //cout << endl;
+                    k++;
                 }
             }
             
@@ -155,8 +156,9 @@ void SFM_Reconstruction::Reconstruction3DopticFlow(Mat *data_frame1, Mat *data_f
         //calcOpticalFlowFarneback( frameGREY, frameCacheGREY, flow, 0.9, 1, 12, 2, 8, 1.7, 0 );    // OPTFLOW_FARNEBACK_GAUSSIAN
         optflow::calcOpticalFlowSparseToDense( fg1, fg2, flow, 4, 128, 0.01f, true, 500.0f, 1.5f);
         
-        for (int y = 0; y < frame.rows; y += 3) {
-            for (int x = 0; x < frame.cols; x += 3) {
+        int win = 3;
+        for (int y = 0; y < frame.rows; y += win) {
+            for (int x = 0; x < frame.cols; x += win) {
                 // get the flow from y, x position * 3 for better visibility
                 const Point2f flowatxy = flow.at<Point2f>(y, x) * 1;
                 // draw line at flow direction
@@ -172,31 +174,35 @@ void SFM_Reconstruction::Reconstruction3DopticFlow(Mat *data_frame1, Mat *data_f
         //waitKey(10);
         
 //--- STEP 2 --- Find essential matrix --------------------------------------//
-        //Essen_mask *= 0;
         Essen_mask = Mat::ones( Size( 1, int(numKeypoints)), Essen_mask.type());
-        E = findEssentialMat(points1, points2, K, RANSAC, 0.999, 1.0, Essen_mask);
-        F = findFundamentalMat(points1, points2, FM_RANSAC, 3, 0.99);
-        correctMatches(F, points1, points2, points1, points2);
+        E = findEssentialMat( points1, points2, K, RANSAC, 0.999, 3.0, Essen_mask );
+        F = findFundamentalMat( points1, points2, FM_RANSAC, 3, 0.99);
+//        correctMatches(F, points1, points2, points1, points2);
         
 //--- STEP 3 --- Calculation of 3d points -----------------------------------//
-        recoverPose(E, points1, points2, K, R, t, 10, Essen_mask, points3D);
+        Mat p3D;
+        p3D *= 0;
+        recoverPose(E, points1, points2, K, R, t, 10, Essen_mask, p3D);
+        int numNoZeroMask = countNonZero(Essen_mask);
+        points3D = Mat::zeros( 4, numNoZeroMask, p3D.type() );
         
-        for (int i = 0; i < points3D.cols; i++)
+        int k = 0;
+        for (int i = 0; i < p3D.cols; i++)
         {
-            //cout << "3Dpoint[ " << i << " ] =";
-            for (int j = 0; j < points3D.rows; j++){
-                points3D.at< double >(j, i) /= points3D.at< double >(3, i);
-                //cout << " " << points3D.at<double>(j, i) << " ";
-            }
-//            if ( (points1[size_t(i)].x > 0) && (points1[size_t(i)].y > 0) && 
-//                 (points2[size_t(i)].x > 0) && (points2[size_t(i)].y > 0) )
+            if ( Essen_mask.at< uchar >(i) == 1 )
+            {
+                for (int j = 0; j < points3D.rows; j++)
+                {
+                    points3D.at< double >(j, k) = p3D.at< double >(j, i) / p3D.at< double >(3, i);
+                }
                 points3D_BGR.push_back( Scalar( (data_frame1->at<Vec3b>(points1.at(static_cast<size_t>(i)))[0] + 
-                                             data_frame2->at<Vec3b>(points2.at(static_cast<size_t>(i)))[0] ) / 2,
-                                            (data_frame1->at<Vec3b>(points1.at(static_cast<size_t>(i)))[1] + 
-                                             data_frame2->at<Vec3b>(points2.at(static_cast<size_t>(i)))[1] ) / 2,
-                                            (data_frame1->at<Vec3b>(points1.at(static_cast<size_t>(i)))[2] + 
-                                             data_frame2->at<Vec3b>(points2.at(static_cast<size_t>(i)))[2] ) / 2 ) );
-            //cout << endl;
+                                                 data_frame2->at<Vec3b>(points2.at(static_cast<size_t>(i)))[0] ) / 2,
+                                                (data_frame1->at<Vec3b>(points1.at(static_cast<size_t>(i)))[1] + 
+                                                 data_frame2->at<Vec3b>(points2.at(static_cast<size_t>(i)))[1] ) / 2,
+                                                (data_frame1->at<Vec3b>(points1.at(static_cast<size_t>(i)))[2] + 
+                                                 data_frame2->at<Vec3b>(points2.at(static_cast<size_t>(i)))[2] ) / 2 ) );
+                k++;
+            }
         }
         
         FileStorage SFM_Result;

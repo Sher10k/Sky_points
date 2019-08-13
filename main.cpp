@@ -18,6 +18,7 @@
 //#define ZCM_EMBEDDED
 
 #include <iostream>
+#include <fstream>
 #include <stdio.h>
 //#include <unistd.h>
 //#include <sys/time.h>
@@ -81,7 +82,7 @@ using namespace zcm;
 #define VIEWER_WIN_WIDTH 640
 #define VIEWER_WIN_HEIGHT 480
 
-#define CAP_VIDEO 0
+#define CAP_VIDEO 1
 
 void drawCamera( boost::shared_ptr < visualization::PCLVisualizer > &view, 
                  vector < visualization::Camera > *camera,
@@ -180,9 +181,8 @@ int main(int argc, char *argv[])  //int argc, char *argv[]
     cam[cloud_flag].view[2] = 1;
     drawCamera( viewer, & cam, Scalar(0,0,255), & Rt ,cloud_flag );
     
-    Matrix4d RTE = Rt[ cloud_flag ];
-    Mat rvec1, Rcache, tcache;
-    rvec1 = Mat::zeros( 3, 1, CV_32FC1 );
+    Mat rvcache, Rcache, tcache;
+    rvcache = Mat::zeros( 3, 1, CV_32FC1 );
     Rcache = Mat::ones( 3, 3, CV_32FC1 );
     tcache = Mat::zeros( 3, 1, CV_32FC1 );
     
@@ -231,7 +231,7 @@ int main(int argc, char *argv[])  //int argc, char *argv[]
 #if ( CAP_VIDEO == 0 ) 
     
     VideoCapture cap;
-    int deviceID = 0;                   //  camera 1
+    int deviceID = 1;                   //  camera 1
     int apiID = cv::CAP_ANY;            //  0 = autodetect default API
     cap.open(deviceID + apiID);         //  Open camera
     if(!cap.isOpened()) {               // Check if we succeeded
@@ -300,15 +300,18 @@ int main(int argc, char *argv[])  //int argc, char *argv[]
     cv2eigen( Calib.cameraMatrix, K );
     //-------------------------------------- Initialize SFM -------------------------------------//
     SFM_Reconstruction MySFM( &cap );
-    
-    
+
+    ofstream Rt_Result;
+    Rt_Result.open ("Rt_Result.txt");
+    Rt_Result << "Rt[ " << cloud_flag << " ]= \n" << Rt[ cloud_flag ] << "\n";
     //------------------------------------------ START ------------------------------------------//
     while(1) {         
         if (f == 1) {                                   // Main loop -----------------------------------------------//
                 //  Wait for a new frame from camera and store it into 'frameRAW'
             if (!cap.read(frameRAW)) { // check if we succeeded
-                cerr << "ERROR! blank frame grabbed\n";
-                break;
+                f = 3;
+//                cerr << "ERROR! blank frame grabbed\n";
+//                break;
             }
             undistort(frameRAW, frame, Calib.cameraMatrix, Calib.distCoeffs);
             
@@ -341,66 +344,44 @@ int main(int argc, char *argv[])  //int argc, char *argv[]
                     Rt.push_back( Rt[ cloud_flag - 1 ] );
                     
                         // Save temporary value Rt into Rcache and tcache
-                    Mat rvec2, Rtemp, ttemp;
+                    Mat rvtemp, Rtemp, ttemp;
                     Rtemp = MySFM.R;
                     ttemp = MySFM.t;
-                        // Combines two rotation-and-shift transformations
-//                    Rodrigues( Rtemp, rvec2 );
-//                    composeRT( rvec2, ttemp, rvec1, tcache, rvec1, tcache );
-//                    Rodrigues( rvec1, Rcache );
-//                    Matrix4d tempRt;
-//                    tempRt << Rcache.at<double>(0, 0), Rcache.at<double>(0, 1), Rcache.at<double>(0, 2), tcache.at<double>(0, 0),
-//                              Rcache.at<double>(1, 0), Rcache.at<double>(1, 1), Rcache.at<double>(1, 2), tcache.at<double>(0, 1),
-//                              Rcache.at<double>(2, 0), Rcache.at<double>(2, 1), Rcache.at<double>(2, 2), tcache.at<double>(0, 2),
-//                              0,                       0,                       0,                       1;
-//                    Mat Rt_1;
-//                    eigen2cv( tempRt, Rt_1 );
-//                    invert( Rt_1, Rt_1, DECOMP_LU );
                     Matrix4d tempRt;
                     tempRt << Rtemp.at<double>(0, 0), Rtemp.at<double>(0, 1), Rtemp.at<double>(0, 2), ttemp.at<double>(0, 0),
                               Rtemp.at<double>(1, 0), Rtemp.at<double>(1, 1), Rtemp.at<double>(1, 2), ttemp.at<double>(0, 1),
                               Rtemp.at<double>(2, 0), Rtemp.at<double>(2, 1), Rtemp.at<double>(2, 2), ttemp.at<double>(0, 2),
-                              0,                      0,                      0,                      1;                    
-                    
+                              0,                      0,                      0,                      1;
                     cout << "Rt_temp = " << endl << tempRt << endl;
+                    
+                        // Inverse matrix calculation
                     Mat Rt_1;
                     eigen2cv( tempRt, Rt_1 );
                     invert( Rt_1, Rt_1, DECOMP_LU );
-                    for ( int i = 0; i < 3; i++ )
-                    {
-                        for ( int j = 0; j < 3; j++ )
-                        {
-                            Rtemp.at<double>(i, j) = Rt_1.at<double>(i, j);
-                        }
-                    }
-                    for ( int j = 0; j < 3; j++ )
-                    {
-                        ttemp.at<double>(j, 0) = Rt_1.at<double>(j, 3);
-                    }
-//                    Rtemp = Rt_1( Range(0, 3), Range(0, 3) );
-//                    ttemp = Rt_1( Range(3, 4), Range(0, 3) );
-//                    ttemp = ttemp.t();
+                    cout << "Rt_temp_1 = " << endl << Rt_1 << endl;
+                    Rtemp = Rt_1( Range(0, 3), Range(0, 3) );
+                    ttemp = Rt_1( Range(0, 3), Range(3, 4) );
                     
-                    Rodrigues( Rtemp, rvec2 );
-                    composeRT( rvec2, ttemp, rvec1, tcache, rvec2, ttemp );
-                    Rodrigues( rvec2, Rtemp );
-                    rvec1 = rvec2;
+                        // Combines two rotation-and-shift transformations
+                    Rodrigues( Rtemp, rvtemp );
+                    composeRT( rvtemp, ttemp, rvcache, tcache, rvtemp, ttemp );
+                    Rodrigues( rvtemp, Rtemp );
+                    rvcache = rvtemp;
                     tcache = ttemp;
                     tempRt << Rtemp.at<double>(0, 0), Rtemp.at<double>(0, 1), Rtemp.at<double>(0, 2), ttemp.at<double>(0, 0),
                               Rtemp.at<double>(1, 0), Rtemp.at<double>(1, 1), Rtemp.at<double>(1, 2), ttemp.at<double>(0, 1),
                               Rtemp.at<double>(2, 0), Rtemp.at<double>(2, 1), Rtemp.at<double>(2, 2), ttemp.at<double>(0, 2),
                               0,                      0,                      0,                      1;
-                    cout << "Rt_temp_1 = " << endl << Rt_1 << endl;
                     Rt[ cloud_flag ] = tempRt;
                     cout << "Rt[ " << cloud_flag << " ]= " << endl 
                          << Rt[ cloud_flag ] << endl;
+                    Rt_Result << "Rt[ " << cloud_flag << " ]= \n" << Rt[ cloud_flag ] << "\n";
                     
                         // 3D points cloud
                     cloud.height = 1;
                     cloud.width = static_cast<unsigned int>( MySFM.points3D.cols );
                     cloud.is_dense = false;
                     cloud.points.resize( cloud.width * cloud.height );
-                    
                     for (size_t i = 0; i < cloud.points.size (); ++i)
                     {
                         Vector4d temp3Dpoint;
@@ -408,7 +389,11 @@ int main(int argc, char *argv[])  //int argc, char *argv[]
                                        MySFM.points3D.at< double >(1, static_cast<int>(i)),
                                        MySFM.points3D.at< double >(2, static_cast<int>(i)),
                                        MySFM.points3D.at< double >(3, static_cast<int>(i));
-                        temp3Dpoint = Rt[ cloud_flag - 1 ] * temp3Dpoint;
+                        for ( size_t j = 0; j < cloud_flag; j++)
+                        {
+                            temp3Dpoint = Rt[ j ] * temp3Dpoint;
+                        }
+                        //temp3Dpoint = Rt[ cloud_flag - 1 ] * temp3Dpoint;
                         cloud.points[i].x = float(temp3Dpoint(0));
                         cloud.points[i].y = float(temp3Dpoint(1));
                         cloud.points[i].z = float(temp3Dpoint(2));
@@ -499,13 +484,28 @@ int main(int argc, char *argv[])  //int argc, char *argv[]
             invert(Calib.cameraMatrix, K_1, DECOMP_LU);
             f = 1;
         }                                               // END Калибровка камеры  ----------------------------------//   END step 0
-
+        else if ( f == 3 )
+        {
+            viewer->spinOnce (5);
+        }
+        
         //-------------------------------------- MENU -------------------------------------------//
-        click = waitKey(1);
+        click = waitKey(5);
         if( click == 27 ) {                                     // Interrupt the cycle, press "ESC"
             break;
         } else if ( click == 13 ) {                             // Take picture, press "Enter"
             imshow("foto", frame);
+        } else if ( (click == 80) || (click == 112) ) {
+            if ( f == 3 ) 
+            {
+                cout << endl << "END Pause -------- " << endl << endl;
+                f = 1;
+            }
+            else if ( f == 1 ) 
+            { 
+                cout << endl << "Pause ------------ " << endl << endl;
+                f = 3;
+            }
         } else if ( (click == 99) || (click == 67) ) {          // Calibrate camera, press "с" & "C"
             f = 2;
             namedWindow("Real time", WINDOW_AUTOSIZE);
@@ -515,6 +515,9 @@ int main(int argc, char *argv[])  //int argc, char *argv[]
         //------------------------------------ END MENU -----------------------------------------//
     }
     //------------------------------------------- END -------------------------------------------//
+    
+    Rt_Result.close();
+    cout << " --- Rt_Result written into file: Rt_Result.txt" << endl;
     
     viewer->close();
     cap.release();
