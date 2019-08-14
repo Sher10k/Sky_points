@@ -30,6 +30,7 @@
 #include <zcm/zcm.h>
 #include <zcm/zcm-cpp.hpp>
 
+#include <opencv2/opencv_modules.hpp>
 #include <opencv2/core.hpp>
 #include <opencv2/core/mat.hpp>
 #include <opencv2/core/eigen.hpp>
@@ -47,6 +48,7 @@
 //#include <opencv2/xfeatures2d.hpp>
 //#include <opencv2/xfeatures2d/nonfree.hpp>
 //#include <opencv2/calib3d.hpp>  // For FundamentalMat
+//#include <opencv2/line_descriptor/descriptor.hpp>
 
 #include <opencv2/sfm.hpp>
 //#include <opencv2/sfm/simple_pipeline.hpp>
@@ -85,52 +87,52 @@ using namespace zcm;
 #define CAP_VIDEO 1
 
 void drawCamera( boost::shared_ptr < visualization::PCLVisualizer > &view, 
-                 vector < visualization::Camera > *camera,
+                 visualization::Camera *camera,
+                 Matrix4d *Rt,
                  Scalar color,
-                 vector < Matrix4d > *Rt, 
-                 size_t cf )
+                 size_t ind )
 {
     string str = "cam_";
     Vector4d CameraRt;
-    CameraRt << camera->at(cf).pos[0], camera->at(cf).pos[1], camera->at(cf).pos[2], 1;
-    CameraRt = Rt->at(cf) * CameraRt;
-    camera->at(cf).pos[0] = CameraRt(0);
-    camera->at(cf).pos[1] = CameraRt(1);
-    camera->at(cf).pos[2] = CameraRt(2);
-    CameraRt<< camera->at(cf).view[0], camera->at(cf).view[1], camera->at(cf).view[2], 1;
-    CameraRt = Rt->at(cf) * CameraRt;
-    camera->at(cf).view[0] = CameraRt(0);
-    camera->at(cf).view[1] = CameraRt(1);
-    camera->at(cf).view[2] = CameraRt(2);
+    CameraRt << camera->pos[0], camera->pos[1], camera->pos[2], 1;
+    CameraRt = *Rt * CameraRt;
+    camera->pos[0] = CameraRt(0);
+    camera->pos[1] = CameraRt(1);
+    camera->pos[2] = CameraRt(2);
+    CameraRt<< camera->view[0], camera->view[1], camera->view[2], 1;
+    CameraRt = *Rt * CameraRt;
+    camera->view[0] = CameraRt(0);
+    camera->view[1] = CameraRt(1);
+    camera->view[2] = CameraRt(2);
     double f_length = sqrt( (CameraRt(0) * CameraRt(0)) + (CameraRt(1) * CameraRt(1)) + (CameraRt(2) * CameraRt(2)) );
     
-    view->addSphere( PointXYZ( static_cast<float>(camera->at(cf).pos[0]), 
-                               static_cast<float>(camera->at(cf).pos[1]), 
-                               static_cast<float>(camera->at(cf).pos[2]) ), 
+    view->addSphere( PointXYZ( static_cast<float>(camera->pos[0]), 
+                               static_cast<float>(camera->pos[1]), 
+                               static_cast<float>(camera->pos[2]) ), 
                        0.3, 
                        color[2] / 255, 
                        color[1] / 255, 
                        color[0] / 255, 
-                       str + "sphere" + to_string(cf), 0 );
+                       str + "sphere" + to_string(ind), 0 );
     ModelCoefficients cone_coeff;
     cone_coeff.values.resize (7);
-    cone_coeff.values[0] = static_cast<float>( camera->at(cf).pos[0] );
-    cone_coeff.values[1] = static_cast<float>( camera->at(cf).pos[1] );
-    cone_coeff.values[2] = static_cast<float>( camera->at(cf).pos[2] );
-    cone_coeff.values[3] = static_cast<float>( -camera->at(cf).view[0] / f_length  / 2 );
-    cone_coeff.values[4] = static_cast<float>( -camera->at(cf).view[1] / f_length  / 2 );
-    cone_coeff.values[5] = static_cast<float>( camera->at(cf).view[2] / f_length  / 2 );
+    cone_coeff.values[0] = static_cast<float>( camera->pos[0] );
+    cone_coeff.values[1] = static_cast<float>( camera->pos[1] );
+    cone_coeff.values[2] = static_cast<float>( camera->pos[2] );
+    cone_coeff.values[3] = static_cast<float>( camera->view[0] / f_length  / 2 );   // -
+    cone_coeff.values[4] = static_cast<float>( camera->view[1] / f_length  / 2 );   // -
+    cone_coeff.values[5] = static_cast<float>( camera->view[2] / f_length  / 2 );
     cone_coeff.values[6] = static_cast<float>( 15 );
-    view->addCone( cone_coeff, str + "cone" + to_string(cf), 0 );
+    view->addCone( cone_coeff, str + "cone" + to_string(ind), 0 );
     
-    cout << "Cam[ " << cf << " ]: " << endl 
-         << " - pos: (" << camera->at(cf).pos[0] << ", " << camera->at(cf).pos[1] << ", " << camera->at(cf).pos[2] << ")" << endl 
-         << " - clip: (" << camera->at(cf).clip[0] << ", " << camera->at(cf).clip[1] << ")" << endl
-         << " - fovy: (" << camera->at(cf).fovy << ")" << endl
-         << " - view: (" << camera->at(cf).view[0] << ", " << camera->at(cf).view[1] << ", " << camera->at(cf).view[2] << ")" << endl 
-         << " - focal: (" << camera->at(cf).focal[0] << ", " << camera->at(cf).focal[1] << ", " << camera->at(cf).focal[2] << ")" << endl
-         << " - window_pos: (" << camera->at(cf).window_pos[0] << ", " << camera->at(cf).window_pos[1] << ")" << endl
-         << " - window_size: (" << camera->at(cf).window_size[0] << ", " << camera->at(cf).window_size[1] << ")" << endl
+    cout << "Cam[ " << ind << " ]: " << endl 
+         << " - pos: (" << camera->pos[0] << ", " << camera->pos[1] << ", " << camera->pos[2] << ")" << endl 
+         << " - clip: (" << camera->clip[0] << ", " << camera->clip[1] << ")" << endl
+         << " - fovy: (" << camera->fovy << ")" << endl
+         << " - view: (" << camera->view[0] << ", " << camera->view[1] << ", " << camera->view[2] << ")" << endl 
+         << " - focal: (" << camera->focal[0] << ", " << camera->focal[1] << ", " << camera->focal[2] << ")" << endl
+         << " - window_pos: (" << camera->window_pos[0] << ", " << camera->window_pos[1] << ")" << endl
+         << " - window_size: (" << camera->window_size[0] << ", " << camera->window_size[1] << ")" << endl
          << endl;
 }
 
@@ -179,7 +181,7 @@ int main(int argc, char *argv[])  //int argc, char *argv[]
     cam[cloud_flag].view[0] = 0;
     cam[cloud_flag].view[1] = 0;
     cam[cloud_flag].view[2] = 1;
-    drawCamera( viewer, & cam, Scalar(0,0,255), & Rt ,cloud_flag );
+    drawCamera( viewer, &cam[cloud_flag], &Rt[cloud_flag], Scalar(0,0,255), cloud_flag );
     
     Mat rvcache, Rcache, tcache;
     rvcache = Mat::zeros( 3, 1, CV_32FC1 );
@@ -271,11 +273,11 @@ int main(int argc, char *argv[])  //int argc, char *argv[]
     }
 #elif ( CAP_VIDEO == 1 ) 
     string file_dir = "/home/roman/Video_SFM/";
-    string file_name = "SFM_video_003.mp4";
+    string file_name = "SFM_video_004.mkv"; // mp4
     VideoCapture cap( file_dir + file_name );
     if( !cap.isOpened() )
             throw "Error when reading " + file_name;
-    cap.set(CAP_PROP_POS_MSEC, 9000);
+    cap.set(CAP_PROP_POS_MSEC, 407000);  // 9000 105000
 //    cap.set(CAP_PROP_FRAME_WIDTH, FRAME_WIDTH);     // 320, 640, (640, 1280)
 //    cap.set(CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT);   // 240, 480, (360, 720)
     cout << " --- VideoCapture" <<endl
@@ -363,19 +365,25 @@ int main(int argc, char *argv[])  //int argc, char *argv[]
                     ttemp = Rt_1( Range(0, 3), Range(3, 4) );
                     
                         // Combines two rotation-and-shift transformations
-                    Rodrigues( Rtemp, rvtemp );
-                    composeRT( rvtemp, ttemp, rvcache, tcache, rvtemp, ttemp );
-                    Rodrigues( rvtemp, Rtemp );
-                    rvcache = rvtemp;
-                    tcache = ttemp;
+//                    Rodrigues( Rtemp, rvtemp );
+//                    composeRT( rvtemp, ttemp, rvcache, tcache, rvtemp, ttemp );
+//                    Rodrigues( rvtemp, Rtemp );
+//                    rvcache = rvtemp;
+//                    tcache = ttemp;
                     tempRt << Rtemp.at<double>(0, 0), Rtemp.at<double>(0, 1), Rtemp.at<double>(0, 2), ttemp.at<double>(0, 0),
                               Rtemp.at<double>(1, 0), Rtemp.at<double>(1, 1), Rtemp.at<double>(1, 2), ttemp.at<double>(0, 1),
                               Rtemp.at<double>(2, 0), Rtemp.at<double>(2, 1), Rtemp.at<double>(2, 2), ttemp.at<double>(0, 2),
                               0,                      0,                      0,                      1;
-                    Rt[ cloud_flag ] = tempRt;
+                    //Rt[ cloud_flag ] = tempRt;
+                    Rt[ cloud_flag ] *= tempRt;
                     cout << "Rt[ " << cloud_flag << " ]= " << endl 
                          << Rt[ cloud_flag ] << endl;
                     Rt_Result << "Rt[ " << cloud_flag << " ]= \n" << Rt[ cloud_flag ] << "\n";
+                    
+                        // Draw camera
+                    //cam.push_back(cam[ cloud_flag - 1 ]);
+                    cam.push_back(cam[ 0 ]);
+                    drawCamera( viewer, &cam[cloud_flag], &Rt[cloud_flag], color, cloud_flag );
                     
                         // 3D points cloud
                     cloud.height = 1;
@@ -389,20 +397,16 @@ int main(int argc, char *argv[])  //int argc, char *argv[]
                                        MySFM.points3D.at< double >(1, static_cast<int>(i)),
                                        MySFM.points3D.at< double >(2, static_cast<int>(i)),
                                        MySFM.points3D.at< double >(3, static_cast<int>(i));
-                        for ( size_t j = 0; j < cloud_flag; j++)
-                        {
-                            temp3Dpoint = Rt[ j ] * temp3Dpoint;
-                        }
-                        //temp3Dpoint = Rt[ cloud_flag - 1 ] * temp3Dpoint;
+                        temp3Dpoint = Rt[ cloud_flag - 1 ] * temp3Dpoint;
                         cloud.points[i].x = float(temp3Dpoint(0));
                         cloud.points[i].y = float(temp3Dpoint(1));
                         cloud.points[i].z = float(temp3Dpoint(2));
-                        cloud.points[i].r = static_cast< uint8_t >( MySFM.points3D_BGR.at(i)[2] );
-                        cloud.points[i].g = static_cast< uint8_t >( MySFM.points3D_BGR.at(i)[1] );
-                        cloud.points[i].b = static_cast< uint8_t >( MySFM.points3D_BGR.at(i)[0] );
-//                        cloud.points[i].r = static_cast< uint8_t >( color[2] );
-//                        cloud.points[i].g = static_cast< uint8_t >( color[1] );
-//                        cloud.points[i].b = static_cast< uint8_t >( color[0] );
+//                        cloud.points[i].r = static_cast< uint8_t >( MySFM.points3D_BGR.at(i)[2] );
+//                        cloud.points[i].g = static_cast< uint8_t >( MySFM.points3D_BGR.at(i)[1] );
+//                        cloud.points[i].b = static_cast< uint8_t >( MySFM.points3D_BGR.at(i)[0] );
+                        cloud.points[i].r = static_cast< uint8_t >( color[2] );
+                        cloud.points[i].g = static_cast< uint8_t >( color[1] );
+                        cloud.points[i].b = static_cast< uint8_t >( color[0] );
                     }
                         // Save 3D points in file
                     pcl::io::savePCDFileASCII ("Reconstruct_cloud.pcd", cloud);
@@ -418,13 +422,17 @@ int main(int argc, char *argv[])  //int argc, char *argv[]
                     viewer->initCameraParameters();
                     viewer->setCameraFieldOfView(0.5); // 0.523599 vertical field of view in radians
                     viewer->setCameraClipDistances(-1000, 2000);
-                    viewer->setCameraPosition(-5, -5, -10,    0, 0, 10,   0, -1, 0);
+                    //viewer->setCameraPosition( -5, -5, -10,    0, 0, 10,   0, -1, 0 );
+                    viewer->setCameraPosition( cam[cloud_flag].pos[0] - (cam[cloud_flag].view[0] - cam[cloud_flag].pos[0]), 
+                                               cam[cloud_flag].pos[1] - (cam[cloud_flag].view[1] - cam[cloud_flag].pos[1]) - 3, 
+                                               cam[cloud_flag].pos[2] - (cam[cloud_flag].view[2] - cam[cloud_flag].pos[2]) - 10, 
+                                               cam[cloud_flag].view[0] + 5*(cam[cloud_flag].view[0] - cam[cloud_flag].pos[0]), 
+                                               cam[cloud_flag].view[1] + 5*(cam[cloud_flag].view[1] - cam[cloud_flag].pos[1]), 
+                                               cam[cloud_flag].view[2] + 5*(cam[cloud_flag].view[2] - cam[cloud_flag].pos[2]), 
+                                               0, -1, 0 );
                     viewer->getCameraParameters( argc, argv );
                     viewer->setPosition(0, 0);
                     
-                        // Draw camera
-                    cam.push_back(cam[ cloud_flag - 1 ]);
-                    drawCamera( viewer, & cam, color, & Rt, cloud_flag );
                     
 //                    viewer->updatePointCloud<pcl::PointXYZ>(cloud2, "sample cloud");
 //                    pcl::io::loadPCDFile("test_pcd.pcd", *cloud2);  // test_pcd.pcd
