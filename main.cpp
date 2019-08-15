@@ -83,6 +83,7 @@ using namespace zcm;
 #define FRAME_HEIGHT 480    // 240, 480, (360, 720)
 #define VIEWER_WIN_WIDTH 640
 #define VIEWER_WIN_HEIGHT 480
+#define PI 3.14159265
 
 #define CAP_VIDEO 1
 
@@ -104,7 +105,9 @@ void drawCamera( boost::shared_ptr < visualization::PCLVisualizer > &view,
     camera->view[0] = CameraRt(0);
     camera->view[1] = CameraRt(1);
     camera->view[2] = CameraRt(2);
-    double f_length = sqrt( (CameraRt(0) * CameraRt(0)) + (CameraRt(1) * CameraRt(1)) + (CameraRt(2) * CameraRt(2)) );
+    double f_length = sqrt( ( (camera->view[0] - camera->pos[0]) * (camera->view[0] - camera->pos[0]) ) + 
+                            ( (camera->view[1] - camera->pos[1]) * (camera->view[1] - camera->pos[1]) ) + 
+                            ( (camera->view[2] - camera->pos[2]) * (camera->view[2] - camera->pos[2]) ) );
     
     view->addSphere( PointXYZ( static_cast<float>(camera->pos[0]), 
                                static_cast<float>(camera->pos[1]), 
@@ -119,10 +122,10 @@ void drawCamera( boost::shared_ptr < visualization::PCLVisualizer > &view,
     cone_coeff.values[0] = static_cast<float>( camera->pos[0] );
     cone_coeff.values[1] = static_cast<float>( camera->pos[1] );
     cone_coeff.values[2] = static_cast<float>( camera->pos[2] );
-    cone_coeff.values[3] = static_cast<float>( camera->view[0] / f_length  / 2 );   // -
-    cone_coeff.values[4] = static_cast<float>( camera->view[1] / f_length  / 2 );   // -
-    cone_coeff.values[5] = static_cast<float>( camera->view[2] / f_length  / 2 );
-    cone_coeff.values[6] = static_cast<float>( 15 );
+    cone_coeff.values[3] = static_cast<float>( (camera->view[0] - camera->pos[0]) / f_length / 2 );   // -
+    cone_coeff.values[4] = static_cast<float>( (camera->view[1] - camera->pos[1]) / f_length / 2 );   // -
+    cone_coeff.values[5] = static_cast<float>( (camera->view[2] - camera->pos[2]) / f_length / 2 );
+    cone_coeff.values[6] = static_cast<float>( 20 );
     view->addCone( cone_coeff, str + "cone" + to_string(ind), 0 );
     
     cout << "Cam[ " << ind << " ]: " << endl 
@@ -160,8 +163,34 @@ int main(int argc, char *argv[])  //int argc, char *argv[]
     boost::shared_ptr < visualization::PCLVisualizer > viewer ( new visualization::PCLVisualizer ("3D Viewer") );
     
     vector < visualization::Camera > cam;
+    vector < visualization::Camera > camZero;
+    viewer->getCameras(camZero);
+    camZero[0].pos[0] = 0;
+    camZero[0].pos[1] = 0;
+    camZero[0].pos[2] = 0;
+    camZero[0].view[0] = 0;
+    camZero[0].view[1] = 0;
+    camZero[0].view[2] = 1;
     viewer->setBackgroundColor(0, 0, 0);
     viewer->addCoordinateSystem(1.0, "global");
+    
+        // Convert camera coordinates to global 
+    Matrix4d Th, Rz90, Ry_90, ThRzRy;
+    Th << 1, 0, 0, 0,
+          0, 1, 0, 0,
+          0, 0, 1, 2,   // h - ground height
+          0, 0, 0, 1;
+    Rz90 << 0,  1, 0, 0,   // cos(90 * PI / 180) sin(90 * PI / 180)
+            -1, 0, 0, 0,   // sin(90 * PI / 180) cos(90 * PI / 180)  
+            0,  0, 1, 0,
+            0,  0, 0, 1;
+    Ry_90 << 0,  0, 1, 0,   // cos(-90 * PI / 180) -sin(-90 * PI / 180)
+             0,  1, 0, 0,
+             -1, 0, 0, 0,    // sin(-90 * PI / 180) cos(-90 * PI / 180) 
+             0,  0, 0, 1;
+    ThRzRy = Th * Ry_90 * Rz90;
+    cout << "ThRzRy = " << endl << ThRzRy << endl;
+    
     size_t cloud_flag = 0;
         // Camera position matrix
     vector < Matrix4d > Rt;
@@ -171,22 +200,27 @@ int main(int argc, char *argv[])  //int argc, char *argv[]
            0,0,1,0,
            0,0,0,1;
     Rt.push_back(one);
+    Rt[ cloud_flag ] *= ThRzRy;
     cout << "Rt[ " << cloud_flag << " ]= " << endl 
          << Rt[ cloud_flag ] << endl;
+    
         // Init of camera default parameters
     viewer->getCameras(cam);
-    cam[cloud_flag].pos[0] = 0;
-    cam[cloud_flag].pos[1] = 0;
-    cam[cloud_flag].pos[2] = 0;
-    cam[cloud_flag].view[0] = 0;
-    cam[cloud_flag].view[1] = 0;
-    cam[cloud_flag].view[2] = 1;
+//    cam[cloud_flag].pos[0] = 0;
+//    cam[cloud_flag].pos[1] = 0;
+//    cam[cloud_flag].pos[2] = 0;
+//    cam[cloud_flag].view[0] = 0;
+//    cam[cloud_flag].view[1] = 0;
+//    cam[cloud_flag].view[2] = 1;
+    cam[cloud_flag] = camZero[0];
     drawCamera( viewer, &cam[cloud_flag], &Rt[cloud_flag], Scalar(0,0,255), cloud_flag );
     
     Mat rvcache, Rcache, tcache;
     rvcache = Mat::zeros( 3, 1, CV_32FC1 );
     Rcache = Mat::ones( 3, 3, CV_32FC1 );
     tcache = Mat::zeros( 3, 1, CV_32FC1 );
+    
+        
     
         // Other variables
     int f = 2;              // Переключение в режим калибровки
@@ -273,11 +307,11 @@ int main(int argc, char *argv[])  //int argc, char *argv[]
     }
 #elif ( CAP_VIDEO == 1 ) 
     string file_dir = "/home/roman/Video_SFM/";
-    string file_name = "SFM_video_004.mkv"; // mp4
+    string file_name = "SFM_video_003.mp4"; // mp4 mkv
     VideoCapture cap( file_dir + file_name );
     if( !cap.isOpened() )
             throw "Error when reading " + file_name;
-    cap.set(CAP_PROP_POS_MSEC, 407000);  // 9000 105000
+    cap.set(CAP_PROP_POS_MSEC, 9000);  // 9000 105000 407000
 //    cap.set(CAP_PROP_FRAME_WIDTH, FRAME_WIDTH);     // 320, 640, (640, 1280)
 //    cap.set(CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT);   // 240, 480, (360, 720)
     cout << " --- VideoCapture" <<endl
@@ -312,8 +346,8 @@ int main(int argc, char *argv[])  //int argc, char *argv[]
                 //  Wait for a new frame from camera and store it into 'frameRAW'
             if (!cap.read(frameRAW)) { // check if we succeeded
                 f = 3;
-//                cerr << "ERROR! blank frame grabbed\n";
-//                break;
+                cerr << "ERROR! blank frame grabbed\n";
+                break;
             }
             undistort(frameRAW, frame, Calib.cameraMatrix, Calib.distCoeffs);
             
@@ -359,7 +393,7 @@ int main(int argc, char *argv[])  //int argc, char *argv[]
                         // Inverse matrix calculation
                     Mat Rt_1;
                     eigen2cv( tempRt, Rt_1 );
-                    invert( Rt_1, Rt_1, DECOMP_LU );
+                    //invert( Rt_1, Rt_1, DECOMP_LU );
                     cout << "Rt_temp_1 = " << endl << Rt_1 << endl;
                     Rtemp = Rt_1( Range(0, 3), Range(0, 3) );
                     ttemp = Rt_1( Range(0, 3), Range(3, 4) );
@@ -376,13 +410,14 @@ int main(int argc, char *argv[])  //int argc, char *argv[]
                               0,                      0,                      0,                      1;
                     //Rt[ cloud_flag ] = tempRt;
                     Rt[ cloud_flag ] *= tempRt;
+                    //Rt[ cloud_flag ] *= ThRzRy;
                     cout << "Rt[ " << cloud_flag << " ]= " << endl 
                          << Rt[ cloud_flag ] << endl;
                     Rt_Result << "Rt[ " << cloud_flag << " ]= \n" << Rt[ cloud_flag ] << "\n";
                     
                         // Draw camera
                     //cam.push_back(cam[ cloud_flag - 1 ]);
-                    cam.push_back(cam[ 0 ]);
+                    cam.push_back( camZero[0] );
                     drawCamera( viewer, &cam[cloud_flag], &Rt[cloud_flag], color, cloud_flag );
                     
                         // 3D points cloud
@@ -423,13 +458,13 @@ int main(int argc, char *argv[])  //int argc, char *argv[]
                     viewer->setCameraFieldOfView(0.5); // 0.523599 vertical field of view in radians
                     viewer->setCameraClipDistances(-1000, 2000);
                     //viewer->setCameraPosition( -5, -5, -10,    0, 0, 10,   0, -1, 0 );
-                    viewer->setCameraPosition( cam[cloud_flag].pos[0] - (cam[cloud_flag].view[0] - cam[cloud_flag].pos[0]), 
-                                               cam[cloud_flag].pos[1] - (cam[cloud_flag].view[1] - cam[cloud_flag].pos[1]) - 3, 
-                                               cam[cloud_flag].pos[2] - (cam[cloud_flag].view[2] - cam[cloud_flag].pos[2]) - 10, 
+                    viewer->setCameraPosition( cam[cloud_flag].pos[0] - 8*(cam[cloud_flag].view[0] - cam[cloud_flag].pos[0]), 
+                                               cam[cloud_flag].pos[1] - 8*(cam[cloud_flag].view[1] - cam[cloud_flag].pos[1]), 
+                                               cam[cloud_flag].pos[2] - (cam[cloud_flag].view[2] - cam[cloud_flag].pos[2]) + 2, 
                                                cam[cloud_flag].view[0] + 5*(cam[cloud_flag].view[0] - cam[cloud_flag].pos[0]), 
                                                cam[cloud_flag].view[1] + 5*(cam[cloud_flag].view[1] - cam[cloud_flag].pos[1]), 
                                                cam[cloud_flag].view[2] + 5*(cam[cloud_flag].view[2] - cam[cloud_flag].pos[2]), 
-                                               0, -1, 0 );
+                                               0, 0, 1 );
                     viewer->getCameraParameters( argc, argv );
                     viewer->setPosition(0, 0);
                     

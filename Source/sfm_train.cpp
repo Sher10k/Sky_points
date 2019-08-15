@@ -190,10 +190,10 @@ void SFM_Reconstruction::Reconstruction3DopticFlow(Mat *data_frame1, Mat *data_f
         cvtColor( *data_frame1, fg1, COLOR_BGR2GRAY );
         cvtColor( *data_frame2, fg2, COLOR_BGR2GRAY );
         //calcOpticalFlowFarneback( frameGREY, frameCacheGREY, flow, 0.9, 1, 12, 2, 8, 1.7, 0 );    // OPTFLOW_FARNEBACK_GAUSSIAN
-        //optflow::calcOpticalFlowSparseToDense( fg1, fg2, flow, 4, 128, 0.01f, true, 500.0f, 1.5f);
-        optflow::calcOpticalFlowSparseToDense( fg1, fg2, flow, 6, 128, 0.2f, true, 500.0f, 1.5f);
+        optflow::calcOpticalFlowSparseToDense( fg1, fg2, flow, 4, 128, 0.01f, true, 500.0f, 1.5f);
+        //optflow::calcOpticalFlowSparseToDense( fg1, fg2, flow, 4, 128, 0.2f, true, 500.0f, 1.5f);
         
-        int win = 5;
+        int win = 3;
         for (int y = 0; y < frame.rows; y += win) {
             for (int x = 0; x < frame.cols; x += win) {
                 // get the flow from y, x position * 3 for better visibility
