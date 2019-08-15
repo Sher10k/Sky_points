@@ -50,26 +50,26 @@ void SFM_Reconstruction::Reconstruction3D(Mat *data_frame1, Mat *data_frame2, Ma
     
     if (!data_frame1->empty()) {
         data_frame1->copyTo(frame1);
-        kpL.clear();
-        kpR.clear();
+//        kpL.clear();
+//        kpR.clear();
         
-        detectorSIFT->detectAndCompute( frame1, maskL, kpL, dpL );
-        detectorSIFT->detectAndCompute( frame1, maskR, kpR, dpR );
-        keypoints1_SIFT.reserve( kpL.size() + kpR.size() );
-        keypoints1_SIFT.insert( keypoints1_SIFT.end(), kpL.begin(), kpL.end() );
-        keypoints1_SIFT.insert( keypoints1_SIFT.end(), kpR.begin(), kpR.end() );
+//        detectorSIFT->detectAndCompute( frame1, maskL, kpL, dpL );
+//        detectorSIFT->detectAndCompute( frame1, maskR, kpR, dpR );
+//        keypoints1_SIFT.reserve( kpL.size() + kpR.size() );
+//        keypoints1_SIFT.insert( keypoints1_SIFT.end(), kpL.begin(), kpL.end() );
+//        keypoints1_SIFT.insert( keypoints1_SIFT.end(), kpR.begin(), kpR.end() );
         
-        //detectorSIFT->detectAndCompute(frame1, cv::noArray(), keypoints1_SIFT, descriptors1_SIFT);
+        detectorSIFT->detectAndCompute(frame1, cv::noArray(), keypoints1_SIFT, descriptors1_SIFT);
     }
     if (!data_frame2->empty()) {
         data_frame2->copyTo(frame2);
-        kpL.clear();
-        kpR.clear();
-        dpL *= 0;
-        dpR *= 0;
+//        kpL.clear();
+//        kpR.clear();
+//        dpL *= 0;
+//        dpR *= 0;
         
-        detectorSIFT->detectAndCompute( frame2, maskL, kpL, dpL );
-        detectorSIFT->detectAndCompute( frame2, maskR, kpR, dpR );
+//        detectorSIFT->detectAndCompute( frame2, maskL, kpL, dpL );
+//        detectorSIFT->detectAndCompute( frame2, maskR, kpR, dpR );
 //        keypoints1_SIFT.reserve( kpL.size() + kpR.size() );
 //        keypoints1_SIFT.insert( keypoints1_SIFT.end(), kpL.begin(), kpL.end() );
 //        keypoints1_SIFT.insert( keypoints1_SIFT.end(), kpR.begin(), kpR.end() );
@@ -102,7 +102,7 @@ void SFM_Reconstruction::Reconstruction3D(Mat *data_frame1, Mat *data_frame2, Ma
         if (numKeypoints > 7)
         {
             Essen_mask = Mat::ones( Size( 1, int(numKeypoints)), Essen_mask.type());
-            E = findEssentialMat(points1, points2, K, RANSAC, 0.999, 3000.0, Essen_mask);
+            E = findEssentialMat(points1, points2, K, RANSAC, 0.999, 3.0, Essen_mask);
             F = findFundamentalMat(points1, points2, FM_RANSAC, 3, 0.99, Essen_mask);
             correctMatches(F, points1, points2, points1, points2);
             
@@ -190,8 +190,8 @@ void SFM_Reconstruction::Reconstruction3DopticFlow(Mat *data_frame1, Mat *data_f
         cvtColor( *data_frame1, fg1, COLOR_BGR2GRAY );
         cvtColor( *data_frame2, fg2, COLOR_BGR2GRAY );
         //calcOpticalFlowFarneback( frameGREY, frameCacheGREY, flow, 0.9, 1, 12, 2, 8, 1.7, 0 );    // OPTFLOW_FARNEBACK_GAUSSIAN
-        optflow::calcOpticalFlowSparseToDense( fg1, fg2, flow, 4, 128, 0.01f, true, 500.0f, 1.5f);
-        //optflow::calcOpticalFlowSparseToDense( fg1, fg2, flow, 4, 128, 0.2f, true, 500.0f, 1.5f);
+        //optflow::calcOpticalFlowSparseToDense( fg1, fg2, flow, 4, 128, 0.01f, true, 500.0f, 1.5f);
+        optflow::calcOpticalFlowSparseToDense( fg1, fg2, flow, 4, 256, 0.2f, true, 500.0f, 1.5f);
         
         int win = 3;
         for (int y = 0; y < frame.rows; y += win) {

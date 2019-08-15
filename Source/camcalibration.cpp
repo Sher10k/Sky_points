@@ -148,7 +148,7 @@ void CalibrationCamera::calibrCameraChess(int _numCornersHor,
                                        found );                                                      //отрисовка углов
                 image_points.push_back( calib_frame_corners );
                 object_points.push_back( obj );
-                cout << "Snap stored!" << endl;
+                cout << "Frame captured " << _nFrames - successes << endl;
 
                 successes++;
              }
@@ -233,24 +233,24 @@ void CalibrationCamera::calibrCameraChess(int _numCornersHor,
 
 void CalibrationCamera::calibrCameraChArUco(int _numrCellX,             // 11, default 5;
                                             int _numCellY,              // 8,  default 7;
-                                            float _squareLength,        // 10, default 0.04f;
-                                            float _markerLength,        // 7,  default 0.02f;
+                                            float _squareLength,        // 0.03f, default 0.04f;
+                                            float _markerLength,        // 0.02f,  default 0.02f;
                                             int _dictionaryId,          // 10
                                             unsigned int _nFrames)
 {
     Mat frame, frame2, frame3;
-    Mat frame4 = Mat::zeros(Size(2 * width_frame, height_frame), CV_8UC3);
-    Mat calib_frame = Mat::zeros(Size(width_frame, height_frame), CV_8UC3);         // Калибровочный кадр,  frame.size()
+    Mat frame4 = Mat::zeros( Size( 2 * width_frame, height_frame ), CV_8UC3 );
+    Mat calib_frame = Mat::zeros( Size( width_frame, height_frame ), CV_8UC3 );         // Калибровочный кадр,  frame.size()
     calibrationFlags = CALIB_FIX_K1 | CALIB_FIX_K2 | CALIB_FIX_K3;      // Calibration flags    | CALIB_FIX_K6
     
         // ChArUco board variables
-    Ptr<aruco::Dictionary> dictionary = aruco::getPredefinedDictionary(aruco::PREDEFINED_DICTIONARY_NAME(_dictionaryId));  // DICT_6X6_250 = 10
+    Ptr< aruco::Dictionary > dictionary = aruco::getPredefinedDictionary( _dictionaryId );  // DICT_6X6_250 = 10 PREDEFINED_DICTIONARY_NAME(_dictionaryId)
         // create charuco board object
-    Ptr<aruco::CharucoBoard> charucoboard = aruco::CharucoBoard::create( _numrCellX, 
-                                                                         _numCellY, 
-                                                                         _squareLength, 
-                                                                         _markerLength, 
-                                                                         dictionary);
+    Ptr< aruco::CharucoBoard > charucoboard = aruco::CharucoBoard::create( _numrCellX, 
+                                                                           _numCellY, 
+                                                                           _squareLength, 
+                                                                           _markerLength, 
+                                                                           dictionary);
     vector< Mat > allCharucoCorners;
     vector< Mat > allCharucoIds;
     vector< Mat > filteredImages;
@@ -307,7 +307,7 @@ void CalibrationCamera::calibrCameraChArUco(int _numrCellX,             // 11, d
                 aruco::drawDetectedMarkers(calib_frame, corners);
                 if(currentCharucoCorners.total() > 0) aruco::drawDetectedCornersCharuco(calib_frame, currentCharucoCorners, currentCharucoIds);
                 
-                cout << "Frame captured" << endl;
+                cout << "Frame captured " << _nFrames - successes << endl;
                 allCorners.push_back(corners);
                 allIds.push_back(ids);
                 allImgs.push_back(calib_frame);

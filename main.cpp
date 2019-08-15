@@ -188,7 +188,7 @@ int main(int argc, char *argv[])  //int argc, char *argv[]
              0,  1, 0, 0,
              -1, 0, 0, 0,    // sin(-90 * PI / 180) cos(-90 * PI / 180) 
              0,  0, 0, 1;
-    ThRzRy = Th * Ry_90 * Rz90;
+    ThRzRy = Th * Ry_90 * Rz90;    //  * Ry_90 * Rz90
     cout << "ThRzRy = " << endl << ThRzRy << endl;
     
     size_t cloud_flag = 0;
@@ -206,14 +206,16 @@ int main(int argc, char *argv[])  //int argc, char *argv[]
     
         // Init of camera default parameters
     viewer->getCameras(cam);
-//    cam[cloud_flag].pos[0] = 0;
-//    cam[cloud_flag].pos[1] = 0;
-//    cam[cloud_flag].pos[2] = 0;
-//    cam[cloud_flag].view[0] = 0;
-//    cam[cloud_flag].view[1] = 0;
-//    cam[cloud_flag].view[2] = 1;
     cam[cloud_flag] = camZero[0];
     drawCamera( viewer, &cam[cloud_flag], &Rt[cloud_flag], Scalar(0,0,255), cloud_flag );
+    
+    viewer->setCameraPosition( cam[cloud_flag].pos[0] - 8*(cam[cloud_flag].view[0] - cam[cloud_flag].pos[0]), 
+                               cam[cloud_flag].pos[1] - 8*(cam[cloud_flag].view[1] - cam[cloud_flag].pos[1]), 
+                               cam[cloud_flag].pos[2] - (cam[cloud_flag].view[2] - cam[cloud_flag].pos[2]) + 2, 
+                               cam[cloud_flag].view[0] + 5*(cam[cloud_flag].view[0] - cam[cloud_flag].pos[0]), 
+                               cam[cloud_flag].view[1] + 5*(cam[cloud_flag].view[1] - cam[cloud_flag].pos[1]), 
+                               cam[cloud_flag].view[2] + 5*(cam[cloud_flag].view[2] - cam[cloud_flag].pos[2]), 
+                               0, 0, 1 );
     
     Mat rvcache, Rcache, tcache;
     rvcache = Mat::zeros( 3, 1, CV_32FC1 );
@@ -267,7 +269,7 @@ int main(int argc, char *argv[])  //int argc, char *argv[]
 #if ( CAP_VIDEO == 0 ) 
     
     VideoCapture cap;
-    int deviceID = 1;                   //  camera 1
+    int deviceID = 0;                   //  camera 1
     int apiID = cv::CAP_ANY;            //  0 = autodetect default API
     cap.open(deviceID + apiID);         //  Open camera
     if(!cap.isOpened()) {               // Check if we succeeded
@@ -305,7 +307,9 @@ int main(int argc, char *argv[])  //int argc, char *argv[]
         fps  = num_frames / seconds * 1000;
         cout << "Estimated frames per second : " << fps << endl;*/
     }
+    
 #elif ( CAP_VIDEO == 1 ) 
+    
     string file_dir = "/home/roman/Video_SFM/";
     string file_name = "SFM_video_003.mp4"; // mp4 mkv
     VideoCapture cap( file_dir + file_name );
@@ -325,6 +329,7 @@ int main(int argc, char *argv[])  //int argc, char *argv[]
          << "Format Mat = " << cap.get(CAP_PROP_FORMAT) << endl
          << " --- " <<endl;
     //namedWindow( "w", 1);
+    
 #endif // CAP_VIDEO   
     
     //-------------------------------------- Initialize calibration -----------------------------//
@@ -393,7 +398,7 @@ int main(int argc, char *argv[])  //int argc, char *argv[]
                         // Inverse matrix calculation
                     Mat Rt_1;
                     eigen2cv( tempRt, Rt_1 );
-                    //invert( Rt_1, Rt_1, DECOMP_LU );
+                    invert( Rt_1, Rt_1, DECOMP_LU );
                     cout << "Rt_temp_1 = " << endl << Rt_1 << endl;
                     Rtemp = Rt_1( Range(0, 3), Range(0, 3) );
                     ttemp = Rt_1( Range(0, 3), Range(3, 4) );
@@ -452,12 +457,12 @@ int main(int argc, char *argv[])  //int argc, char *argv[]
                     string str = "sample cloud";
                     str += to_string(cloud_flag);
                     
-                    viewer->addPointCloud<pcl::PointXYZRGB>(cloud2, str, 0);
-                    viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 2, str);
+                    viewer->addPointCloud< pcl::PointXYZRGB >( cloud2, str, 0 );
+                    viewer->setPointCloudRenderingProperties ( pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 2, str );
                     viewer->initCameraParameters();
-                    viewer->setCameraFieldOfView(0.5); // 0.523599 vertical field of view in radians
-                    viewer->setCameraClipDistances(-1000, 2000);
-                    //viewer->setCameraPosition( -5, -5, -10,    0, 0, 10,   0, -1, 0 );
+                    viewer->setCameraFieldOfView( 0.5 ); // 0.523599 vertical field of view in radians
+                    viewer->setCameraClipDistances( -1000, 2000 );
+//                    viewer->setCameraPosition( -5, -5, -10,    0, 0, 10,   0, -1, 0 );
                     viewer->setCameraPosition( cam[cloud_flag].pos[0] - 8*(cam[cloud_flag].view[0] - cam[cloud_flag].pos[0]), 
                                                cam[cloud_flag].pos[1] - 8*(cam[cloud_flag].view[1] - cam[cloud_flag].pos[1]), 
                                                cam[cloud_flag].pos[2] - (cam[cloud_flag].view[2] - cam[cloud_flag].pos[2]) + 2, 
@@ -466,8 +471,7 @@ int main(int argc, char *argv[])  //int argc, char *argv[]
                                                cam[cloud_flag].view[2] + 5*(cam[cloud_flag].view[2] - cam[cloud_flag].pos[2]), 
                                                0, 0, 1 );
                     viewer->getCameraParameters( argc, argv );
-                    viewer->setPosition(0, 0);
-                    
+                    viewer->setPosition( 0, 0 );
                     
 //                    viewer->updatePointCloud<pcl::PointXYZ>(cloud2, "sample cloud");
 //                    pcl::io::loadPCDFile("test_pcd.pcd", *cloud2);  // test_pcd.pcd
@@ -520,8 +524,8 @@ int main(int argc, char *argv[])  //int argc, char *argv[]
             frame.copyTo(frameCache);*/
         }                                               // END Main loop -------------------------------------------//
         else if ( f == 2 ) {                            // Калибровка камеры  press "с" or "C"----------------------//      step 0
-            Calib.calibrCameraChess(10, 7, 10);    // 8, 6
-            //Calib.calibrCameraChArUco(11, 8, 10, 7, 10, 10);
+            //Calib.calibrCameraChess(10, 7, 30);    // 8, 6
+            Calib.calibrCameraChArUco(11, 8, 0.03f, 0.02f, aruco::DICT_6X6_250, 30);
             Calib.printParam();
             cv2eigen(Calib.cameraMatrix, K);
             invert(Calib.cameraMatrix, K_1, DECOMP_LU);
