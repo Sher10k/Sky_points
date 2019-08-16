@@ -36,7 +36,7 @@ public:
     void calibrCameraChess( int numCornersHor,                 // Кол-во углов по вертикале и горизонтале для метода ChArUco и на 1 меньше чем кол-во 
                             int numCornersVer,                 // квадратов по вертикале и горизонтале, для метода калибровки по chessboard
                             unsigned int nFrames);             // Number of calibration frames
-    void calibrCameraChArUco( int numrCellX,                // Кол-во углов по вертикале и горизонтале для метода ChArUco и на 1 меньше чем кол-во 
+    void calibrCameraChArUco( int numCellX,                // Кол-во углов по вертикале и горизонтале для метода ChArUco и на 1 меньше чем кол-во 
                               int numCellY,                 // квадратов по вертикале и горизонтале, для метода калибровки по chessboard
                               float squareLength,
                               float markerLength,

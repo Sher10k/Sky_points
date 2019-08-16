@@ -189,7 +189,11 @@ void SFM_Reconstruction::Reconstruction3DopticFlow(Mat *data_frame1, Mat *data_f
         Mat fg1, fg2;
         cvtColor( *data_frame1, fg1, COLOR_BGR2GRAY );
         cvtColor( *data_frame2, fg2, COLOR_BGR2GRAY );
-        //calcOpticalFlowFarneback( frameGREY, frameCacheGREY, flow, 0.9, 1, 12, 2, 8, 1.7, 0 );    // OPTFLOW_FARNEBACK_GAUSSIAN
+        imshow( "fg1", fg1 );
+        imshow( "fg2", fg2 );
+        waitKey(20);
+        //calcOpticalFlowFarneback( fg1, fg2, flow, 0.9, 1, 12, 2, 8, 1.7, 0 );    // OPTFLOW_FARNEBACK_GAUSSIAN
+        //calcOpticalFlowFarneback( fg1, fg2, flow, 0.6, 4, 5, 2, 3, 1.1, OPTFLOW_FARNEBACK_GAUSSIAN );
         //optflow::calcOpticalFlowSparseToDense( fg1, fg2, flow, 4, 128, 0.01f, true, 500.0f, 1.5f);
         optflow::calcOpticalFlowSparseToDense( fg1, fg2, flow, 4, 256, 0.2f, true, 500.0f, 1.5f);
         
@@ -212,7 +216,7 @@ void SFM_Reconstruction::Reconstruction3DopticFlow(Mat *data_frame1, Mat *data_f
         
 //--- STEP 2 --- Find essential matrix --------------------------------------//
         Essen_mask = Mat::ones( Size( 1, int(numKeypoints)), Essen_mask.type());
-        E = findEssentialMat( points1, points2, K, RANSAC, 0.999, 10.0, Essen_mask );
+        E = findEssentialMat( points1, points2, K, RANSAC, 0.999, 3.0, Essen_mask );
         F = findFundamentalMat( points1, points2, FM_RANSAC, 3, 0.99);
 //        correctMatches(F, points1, points2, points1, points2);
         
@@ -223,7 +227,7 @@ void SFM_Reconstruction::Reconstruction3DopticFlow(Mat *data_frame1, Mat *data_f
         points3D.release();
         points3D_BGR.clear();
         
-        recoverPose(E, points1, points2, K, R, t, 10, Essen_mask, p3D);
+        recoverPose(E, points1, points2, K, R, t, 15, Essen_mask, p3D);
         
         int k = 0;
         if ( maskf == 0) 

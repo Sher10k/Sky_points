@@ -269,7 +269,7 @@ int main(int argc, char *argv[])  //int argc, char *argv[]
 #if ( CAP_VIDEO == 0 ) 
     
     VideoCapture cap;
-    int deviceID = 0;                   //  camera 1
+    int deviceID = 1;                   //  camera 1
     int apiID = cv::CAP_ANY;            //  0 = autodetect default API
     cap.open(deviceID + apiID);         //  Open camera
     if(!cap.isOpened()) {               // Check if we succeeded
@@ -355,6 +355,18 @@ int main(int argc, char *argv[])  //int argc, char *argv[]
                 break;
             }
             undistort(frameRAW, frame, Calib.cameraMatrix, Calib.distCoeffs);
+            
+                // Filter
+            int sigma = 3;
+            int ksize = ( sigma*5 ) | 1;
+            Mat frametemp;
+            frame.copyTo( frametemp );
+            //GaussianBlur( frame, frametemp, Size( ksize, ksize ), sigma, sigma, cv::BORDER_DEFAULT );
+            //bilateralFilter( frame, frametemp, 3, 7, 7 );
+            //medianBlur( frame, frametemp, 5 );
+            //Canny( frame, frametemp, 100, 150, 3, false );
+            //cvtColor( frametemp, frame, COLOR_GRAY2BGR );
+            //frametemp.copyTo( frame );
             
             Mat fL, fR;
             if (!frameCache.empty()) resize( frameCache, fL, Size(VIEWER_WIN_WIDTH, VIEWER_WIN_HEIGHT), 0, 0, INTER_LINEAR );

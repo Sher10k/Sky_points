@@ -148,7 +148,7 @@ void CalibrationCamera::calibrCameraChess(int _numCornersHor,
                                        found );                                                      //отрисовка углов
                 image_points.push_back( calib_frame_corners );
                 object_points.push_back( obj );
-                cout << "Frame captured " << _nFrames - successes << endl;
+                cout << " --- Frame captured " << _nFrames - successes << endl;
 
                 successes++;
              }
@@ -231,7 +231,7 @@ void CalibrationCamera::calibrCameraChess(int _numCornersHor,
 }
 
 
-void CalibrationCamera::calibrCameraChArUco(int _numrCellX,             // 11, default 5;
+void CalibrationCamera::calibrCameraChArUco(int _numCellX,             // 11, default 5;
                                             int _numCellY,              // 8,  default 7;
                                             float _squareLength,        // 0.03f, default 0.04f;
                                             float _markerLength,        // 0.02f,  default 0.02f;
@@ -246,7 +246,7 @@ void CalibrationCamera::calibrCameraChArUco(int _numrCellX,             // 11, d
         // ChArUco board variables
     Ptr< aruco::Dictionary > dictionary = aruco::getPredefinedDictionary( _dictionaryId );  // DICT_6X6_250 = 10 PREDEFINED_DICTIONARY_NAME(_dictionaryId)
         // create charuco board object
-    Ptr< aruco::CharucoBoard > charucoboard = aruco::CharucoBoard::create( _numrCellX, 
+    Ptr< aruco::CharucoBoard > charucoboard = aruco::CharucoBoard::create( _numCellX, 
                                                                            _numCellY, 
                                                                            _squareLength, 
                                                                            _markerLength, 
@@ -293,7 +293,7 @@ void CalibrationCamera::calibrCameraChArUco(int _numrCellX,             // 11, d
                                   ids, 
                                   detectorParams);
             
-            if (ids.size() > 0)    // Проверка удачно найденых углов
+            if ( static_cast< int >( ids.size() ) == (_numCellX * _numCellY) / 2 )    // Проверка удачно найденых углов
             {
                     // interpolate charuco corners
                 Mat currentCharucoCorners, currentCharucoIds;
@@ -307,12 +307,25 @@ void CalibrationCamera::calibrCameraChArUco(int _numrCellX,             // 11, d
                 aruco::drawDetectedMarkers(calib_frame, corners);
                 if(currentCharucoCorners.total() > 0) aruco::drawDetectedCornersCharuco(calib_frame, currentCharucoCorners, currentCharucoIds);
                 
-                cout << "Frame captured " << _nFrames - successes << endl;
+                cout << " --- Frame captured " << _nFrames - successes << endl;
                 allCorners.push_back(corners);
                 allIds.push_back(ids);
                 allImgs.push_back(calib_frame);
                 
                 successes++;
+            }
+            else if ( ids.size() > 0 )
+            {
+                Mat currentCharucoCorners, currentCharucoIds;
+                aruco::interpolateCornersCharuco( corners, 
+                                                  ids, 
+                                                  calib_frame, 
+                                                  charucoboard, 
+                                                  currentCharucoCorners,
+                                                  currentCharucoIds);
+                aruco::drawDetectedMarkers(calib_frame, corners);
+                if(currentCharucoCorners.total() > 0) aruco::drawDetectedCornersCharuco(calib_frame, currentCharucoCorners, currentCharucoIds);
+                cout << " --- Not enough markers" << endl;
             }
         } 
         else if ( (batton_calib == 114) || (batton_calib == 82) || (batton_calib == 48) || (batton_calib == 27) )
