@@ -148,6 +148,7 @@ void SFM_Reconstruction::Reconstruction3D(Mat *data_frame1, Mat *data_frame2, Ma
             
             drawMatches(frame1, good_points1, frame2, good_points2, good_matches, frame4);
             imshow("SFM-result", frame4);
+            waitKey(10);
         } 
         else 
         {
@@ -158,6 +159,7 @@ void SFM_Reconstruction::Reconstruction3D(Mat *data_frame1, Mat *data_frame2, Ma
             frame1.copyTo(frame4( r1 ));
             frame2.copyTo(frame4( r2 ));
             imshow("SFM-result", frame4);
+            waitKey(10);
             cout << " --- Not enough keypoints" << endl;
         }
     } 
@@ -170,6 +172,7 @@ void SFM_Reconstruction::Reconstruction3D(Mat *data_frame1, Mat *data_frame2, Ma
         frame1.copyTo(frame4( r1 ));
         frame2.copyTo(frame4( r2 ));
         imshow("SFM-result", frame4);
+        waitKey(10);
         cout <<" --- No keypoints found in one of the frames" << endl;
     }
 }
@@ -189,9 +192,9 @@ void SFM_Reconstruction::Reconstruction3DopticFlow(Mat *data_frame1, Mat *data_f
         Mat fg1, fg2;
         cvtColor( *data_frame1, fg1, COLOR_BGR2GRAY );
         cvtColor( *data_frame2, fg2, COLOR_BGR2GRAY );
-        imshow( "fg1", fg1 );
-        imshow( "fg2", fg2 );
-        waitKey(20);
+//        imshow( "fg1", fg1 );
+//        imshow( "fg2", fg2 );
+//        waitKey(20);
         //calcOpticalFlowFarneback( fg1, fg2, flow, 0.9, 1, 12, 2, 8, 1.7, 0 );    // OPTFLOW_FARNEBACK_GAUSSIAN
         //calcOpticalFlowFarneback( fg1, fg2, flow, 0.6, 4, 5, 2, 3, 1.1, OPTFLOW_FARNEBACK_GAUSSIAN );
         //optflow::calcOpticalFlowSparseToDense( fg1, fg2, flow, 4, 128, 0.01f, true, 500.0f, 1.5f);
@@ -283,6 +286,7 @@ void SFM_Reconstruction::Reconstruction3DopticFlow(Mat *data_frame1, Mat *data_f
         
         resize( frame, frame, Size(640, 480), 0, 0, INTER_LINEAR );
         imshow("SFM-result", frame);
+        waitKey(10);
     }
     else
     {   

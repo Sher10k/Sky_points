@@ -311,11 +311,11 @@ int main(int argc, char *argv[])  //int argc, char *argv[]
 #elif ( CAP_VIDEO == 1 ) 
     
     string file_dir = "/home/roman/Video_SFM/";
-    string file_name = "SFM_video_003.mp4"; // mp4 mkv
+    string file_name = "SFM_video_005.mp4"; // mp4 mkv
     VideoCapture cap( file_dir + file_name );
     if( !cap.isOpened() )
             throw "Error when reading " + file_name;
-    cap.set(CAP_PROP_POS_MSEC, 9000);  // 9000 105000 407000
+    cap.set(CAP_PROP_POS_MSEC, 15000);  // 9000 105000 407000
 //    cap.set(CAP_PROP_FRAME_WIDTH, FRAME_WIDTH);     // 320, 640, (640, 1280)
 //    cap.set(CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT);   // 240, 480, (360, 720)
     cout << " --- VideoCapture" <<endl
@@ -549,7 +549,7 @@ int main(int argc, char *argv[])  //int argc, char *argv[]
         }
         
         //-------------------------------------- MENU -------------------------------------------//
-        click = waitKey(5);
+        click = waitKey(15);
         if( click == 27 ) {                                     // Interrupt the cycle, press "ESC"
             break;
         } else if ( click == 13 ) {                             // Take picture, press "Enter"
