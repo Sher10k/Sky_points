@@ -4,7 +4,7 @@ intrinsic: !!opencv-matrix
    rows: 3
    cols: 3
    dt: d
-   data: [ 3100., 0., 1024., 0., 3100., 768., 0., 0., 1. ]
+   data: [ 1000., 0., 754., 0., 1000., 280., 0., 0., 1. ]
 distCoeffs: !!opencv-matrix
    rows: 1
    cols: 5

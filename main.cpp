@@ -83,9 +83,8 @@ using namespace zcm;
 #define FRAME_HEIGHT 480    // 240, 480, (360, 720)
 #define VIEWER_WIN_WIDTH 640
 #define VIEWER_WIN_HEIGHT 480
-#define PI 3.14159265
 
-#define CAP_VIDEO 1
+#define CAP_VIDEO 0
 
 void drawCamera( boost::shared_ptr < visualization::PCLVisualizer > &view, 
                  visualization::Camera *camera,
@@ -139,7 +138,7 @@ void drawCamera( boost::shared_ptr < visualization::PCLVisualizer > &view,
          << endl;
 }
 
-int main(int argc, char *argv[])  //int argc, char *argv[]
+int main( int argc, char *argv[] )  //int argc, char *argv[]
 {
     //system("ls -ls");
     
@@ -180,13 +179,13 @@ int main(int argc, char *argv[])  //int argc, char *argv[]
           0, 1, 0, 0,
           0, 0, 1, 2,   // h - ground height
           0, 0, 0, 1;
-    Rz90 << 0,  1, 0, 0,   // cos(90 * PI / 180) sin(90 * PI / 180)
-            -1, 0, 0, 0,   // sin(90 * PI / 180) cos(90 * PI / 180)  
+    Rz90 << 0,  1, 0, 0,   // cos(90 * CV_PI / 180) sin(90 * CV_PI / 180)
+            -1, 0, 0, 0,   // sin(90 * CV_PI / 180) cos(90 * CV_PI / 180)  
             0,  0, 1, 0,
             0,  0, 0, 1;
-    Ry_90 << 0,  0, 1, 0,   // cos(-90 * PI / 180) -sin(-90 * PI / 180)
+    Ry_90 << 0,  0, 1, 0,   // cos(-90 * CV_PI / 180) -sin(-90 * CV_PI / 180)
              0,  1, 0, 0,
-             -1, 0, 0, 0,    // sin(-90 * PI / 180) cos(-90 * PI / 180) 
+             -1, 0, 0, 0,    // sin(-90 * CV_PI / 180) cos(-90 * CV_PI / 180) 
              0,  0, 0, 1;
     ThRzRy = Th * Ry_90 * Rz90;    //  * Ry_90 * Rz90
     cout << "ThRzRy = " << endl << ThRzRy << endl;
@@ -311,11 +310,11 @@ int main(int argc, char *argv[])  //int argc, char *argv[]
 #elif ( CAP_VIDEO == 1 ) 
     
     string file_dir = "/home/roman/Video_SFM/";
-    string file_name = "SFM_video_005.mp4"; // mp4 mkv
+    string file_name = "SFM_video_003.mp4"; // mp4 mkv
     VideoCapture cap( file_dir + file_name );
     if( !cap.isOpened() )
             throw "Error when reading " + file_name;
-    cap.set(CAP_PROP_POS_MSEC, 15000);  // 9000 105000 407000
+    cap.set(CAP_PROP_POS_MSEC, 9000);  // 9000 105000 407000 15000
 //    cap.set(CAP_PROP_FRAME_WIDTH, FRAME_WIDTH);     // 320, 640, (640, 1280)
 //    cap.set(CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT);   // 240, 480, (360, 720)
     cout << " --- VideoCapture" <<endl
@@ -340,7 +339,7 @@ int main(int argc, char *argv[])  //int argc, char *argv[]
     Matrix3d K;
     cv2eigen( Calib.cameraMatrix, K );
     //-------------------------------------- Initialize SFM -------------------------------------//
-    SFM_Reconstruction MySFM( &cap );
+    SFM_Reconstruction MySFM;
 
     ofstream Rt_Result;
     Rt_Result.open ("Rt_Result.txt");
@@ -387,8 +386,8 @@ int main(int argc, char *argv[])  //int argc, char *argv[]
             if ( button_nf == 32 )             // If press "space"
             {
                     // SFM reconstruction
-                //MySFM.Reconstruction3D( & frameCache, & frame, Calib.cameraMatrix );    // Put old frame then new frame
-                MySFM.Reconstruction3DopticFlow( & frameCache, & frame, Calib.cameraMatrix );
+                MySFM.Reconstruct3D( &frameCache, &frame, Calib.cameraMatrix );    // Put old frame then new frame
+                //MySFM.Reconstruct3DopticFlow( &frameCache, &frame, Calib.cameraMatrix );
                 
                 if (!MySFM.points3D.empty())
                 {
@@ -442,7 +441,7 @@ int main(int argc, char *argv[])  //int argc, char *argv[]
                     cloud.width = static_cast<unsigned int>( MySFM.points3D.cols );
                     cloud.is_dense = false;
                     cloud.points.resize( cloud.width * cloud.height );
-                    for (size_t i = 0; i < cloud.points.size (); ++i)
+                    for (size_t i = 0; i < cloud.points.size(); ++i)
                     {
                         Vector4d temp3Dpoint;
                         temp3Dpoint << MySFM.points3D.at< double >(0, static_cast<int>(i)), 
@@ -453,12 +452,12 @@ int main(int argc, char *argv[])  //int argc, char *argv[]
                         cloud.points[i].x = float(temp3Dpoint(0));
                         cloud.points[i].y = float(temp3Dpoint(1));
                         cloud.points[i].z = float(temp3Dpoint(2));
-//                        cloud.points[i].r = static_cast< uint8_t >( MySFM.points3D_BGR.at(i)[2] );
-//                        cloud.points[i].g = static_cast< uint8_t >( MySFM.points3D_BGR.at(i)[1] );
-//                        cloud.points[i].b = static_cast< uint8_t >( MySFM.points3D_BGR.at(i)[0] );
-                        cloud.points[i].r = static_cast< uint8_t >( color[2] );
-                        cloud.points[i].g = static_cast< uint8_t >( color[1] );
-                        cloud.points[i].b = static_cast< uint8_t >( color[0] );
+                        cloud.points[i].r = static_cast< uint8_t >( MySFM.points3D_BGR.at(i)[2] );
+                        cloud.points[i].g = static_cast< uint8_t >( MySFM.points3D_BGR.at(i)[1] );
+                        cloud.points[i].b = static_cast< uint8_t >( MySFM.points3D_BGR.at(i)[0] );
+//                        cloud.points[i].r = static_cast< uint8_t >( color[2] );
+//                        cloud.points[i].g = static_cast< uint8_t >( color[1] );
+//                        cloud.points[i].b = static_cast< uint8_t >( color[0] );
                     }
                         // Save 3D points in file
                     pcl::io::savePCDFileASCII ("Reconstruct_cloud.pcd", cloud);
