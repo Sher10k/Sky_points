@@ -84,7 +84,7 @@ using namespace zcm;
 #define VIEWER_WIN_WIDTH 640
 #define VIEWER_WIN_HEIGHT 480
 
-#define CAP_VIDEO 0
+#define CAP_VIDEO 1
 
 void drawCamera( boost::shared_ptr < visualization::PCLVisualizer > &view, 
                  visualization::Camera *camera,
@@ -355,17 +355,55 @@ int main( int argc, char *argv[] )  //int argc, char *argv[]
             }
             undistort(frameRAW, frame, Calib.cameraMatrix, Calib.distCoeffs);
             
-                // Filter
+// --- --- --- Filter
+            Mat frameTemp, frameTempGrey;
+            frame.copyTo( frameTemp );
+            
+            cvtColor( frameTemp, frameTempGrey, COLOR_BGR2GRAY );
+            imwrite( "Frame_Grey.jpg", frameTempGrey );
+            
             int sigma = 3;
-            int ksize = ( sigma*5 ) | 1;
-            Mat frametemp;
-            frame.copyTo( frametemp );
-            //GaussianBlur( frame, frametemp, Size( ksize, ksize ), sigma, sigma, cv::BORDER_DEFAULT );
-            //bilateralFilter( frame, frametemp, 3, 7, 7 );
-            //medianBlur( frame, frametemp, 5 );
-            //Canny( frame, frametemp, 100, 150, 3, false );
-            //cvtColor( frametemp, frame, COLOR_GRAY2BGR );
-            //frametemp.copyTo( frame );
+            int ksize = 7;  //( sigma*5 ) | 1;
+            GaussianBlur( frameTempGrey, frameTempGrey, Size( ksize, ksize ), sigma, sigma, cv::BORDER_DEFAULT );
+            imwrite( "Frame_Gauss.jpg", frameTempGrey );
+            
+            Mat mask = Mat::zeros( frameTempGrey.size(), CV_8U );
+            for ( int i = 0; i < mask.rows; i++ )
+            {
+                for ( int j = 0; j < mask.cols; j++ ) 
+                {
+                    if ( i > 500 ) mask.at< char >(i, j) = 1;
+                    else mask.at< char >(i, j) = 0;
+                }
+            }
+            Mat ftg = frameTempGrey.clone();
+            ftg.copyTo( frameTempGrey, mask );
+                
+            Canny( frameTempGrey, frameTempGrey, 10, 50, 3, false );
+            imwrite( "Frame_Canny.jpg", frameTempGrey );
+            
+            Mat frameTempLines = Mat::zeros( frameTempGrey.size(), CV_8UC3 );
+            vector< Vec4i > lines;
+            HoughLinesP( frameTempGrey, lines, 1, CV_PI/180, 80, 30, 10 );
+            //cvtColor( frameTempGrey, imgLine[0], COLOR_GRAY2BGR);
+            for( size_t i = 0; i < lines.size(); i++ )
+            {
+                line( frameTempLines, 
+                      Point( lines[i][0], lines[i][1] ),
+                      Point( lines[i][2], lines[i][3] ), 
+                      Scalar(0,0,255), 3, 8 );
+            }
+            imwrite( "Frame_Line.jpg", frameTempLines );
+            
+            //bilateralFilter( frame, frameTemp, 3, 7, 7 );
+            //medianBlur( frame, frameTemp, 5 );
+            
+            cvtColor( frameTempGrey, frameTemp, COLOR_GRAY2BGR );
+//            imshow( "frameTemp", frameTemp );
+//            waitKey(10);
+//            frameTemp.copyTo( frame );
+// --- --- --- END Filter
+
             
             Mat fL, fR;
             if (!frameCache.empty()) resize( frameCache, fL, Size(VIEWER_WIN_WIDTH, VIEWER_WIN_HEIGHT), 0, 0, INTER_LINEAR );
@@ -386,8 +424,8 @@ int main( int argc, char *argv[] )  //int argc, char *argv[]
             if ( button_nf == 32 )             // If press "space"
             {
                     // SFM reconstruction
-                MySFM.Reconstruct3D( &frameCache, &frame, Calib.cameraMatrix );    // Put old frame then new frame
-                //MySFM.Reconstruct3DopticFlow( &frameCache, &frame, Calib.cameraMatrix );
+                //MySFM.Reconstruct3D( &frameCache, &frame, Calib.cameraMatrix );    // Put old frame then new frame
+                MySFM.Reconstruct3DopticFlow( &frameCache, &frame, Calib.cameraMatrix );
                 
                 if (!MySFM.points3D.empty())
                 {
