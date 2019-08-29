@@ -192,23 +192,38 @@ void SFM_Reconstruction::Reconstruct3DopticFlow( Mat *data_frame1, Mat *data_fra
 //        waitKey(20);
         //calcOpticalFlowFarneback( fg1, fg2, flow, 0.9, 1, 12, 2, 8, 1.7, 0 );    // OPTFLOW_FARNEBACK_GAUSSIAN
         //calcOpticalFlowFarneback( fg1, fg2, flow, 0.6, 4, 5, 2, 3, 1.1, OPTFLOW_FARNEBACK_GAUSSIAN );
-        //optflow::calcOpticalFlowSparseToDense( fg1, fg2, flow, 4, 128, 0.01f, true, 500.0f, 1.5f);
-        optflow::calcOpticalFlowSparseToDense( fg1, fg2, flow, 4, 256, 0.2f, true, 500.0f, 1.5f);
+        optflow::calcOpticalFlowSparseToDense( fg1, fg2, flow, 4, 128, 0.01f, true, 500.0f, 1.5f);
+        //optflow::calcOpticalFlowSparseToDense( fg1, fg2, flow, 13, 256, 0.002f, true, 500.0f, 1.5f);
+        //optflow::calcOpticalFlowSparseToDense( fg1, fg2, flow, 3, 32, 0.01f, false );
         
+        Mat Lmax;
+        normalize( flow, Lmax, 1.0, 0.0, NORM_INF);
+        cvtColor( frame4, frame4, COLOR_BGR2HSV );
         int win = 3;
-        for (int y = 0; y < frame4.rows; y += win) {
-            for (int x = 0; x < frame4.cols; x += win) {
+        for (int y = 0; y < frame4.rows; y += win) 
+        {
+            for (int x = 0; x < frame4.cols; x += win) 
+            {
                     // get the flow from y, x position * 3 for better visibility
-                const Point2f flowatxy = flow.at<Point2f>(y, x) * 1;
+                const Point2f flowatxy = flow.at< Point2f >(y, x) * 1;
+                
+                const Point2f Lxy = Lmax.at< Point2f >(y, x) * 1;
+                //double Lhsv = double( sqrt( ((Lxy.x)*(Lxy.x)) + ((Lxy.y)*(Lxy.y)) ) );
+                float Hsv = 179 * sqrt( ((Lxy.x)*(Lxy.x)) + ((Lxy.y)*(Lxy.y)) );
+                
                     // draw line at flow direction
-                line(frame4, Point(x, y), Point(cvRound(x + flowatxy.x), cvRound(y + flowatxy.y)), Scalar(255, 200, 0));
+                line( frame4, 
+                      Point(x, y), 
+                      Point(cvRound(x + flowatxy.x), cvRound(y + flowatxy.y)), 
+                      Scalar(unsigned( Hsv ), 255, 255) );        // H: 0-179, S: 0-255, V: 0-255
                     // draw initial point
-                circle(frame4, Point(x, y), 1, Scalar(0, 0, 0), -1);
-                points1.push_back(Point2f(x, y));
-                points2.push_back(Point2f((x + flowatxy.x), (y + flowatxy.y)));
+                //circle(frame4, Point(x, y), 1, Scalar(0, 0, 0), -1);
+                points1.push_back( Point2f(x, y) );
+                points2.push_back( Point2f((x + flowatxy.x), (y + flowatxy.y)) );
                 numKeypoints++;
             }
         }
+        cvtColor( frame4, frame4, COLOR_HSV2BGR );
         //imshow("RGB", points3D_BGR);
         //waitKey(10);
         
@@ -281,6 +296,7 @@ void SFM_Reconstruction::Reconstruct3DopticFlow( Mat *data_frame1, Mat *data_fra
         SFM_Result.release();
         cout << " --- SFM_Result written into file: SFM_Result_opticflow.txt" << endl;
         
+        frame4.copyTo( frameFlow );
         resize( frame4, frame4, Size(640, 480), 0, 0, INTER_LINEAR );
         imshow("SFM-result", frame4);
         waitKey(10);

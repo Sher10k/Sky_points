@@ -156,9 +156,8 @@ int main( int argc, char *argv[] )  //int argc, char *argv[]
     frame2 = Mat::zeros(Size(2 * VIEWER_WIN_WIDTH, VIEWER_WIN_HEIGHT), CV_8UC3);
     
         // Cloud of points
-    //std::vector<pcl::visualization::Camera> camera; 
-    PointCloud < PointXYZRGB > cloud;
-    PointCloud < PointXYZRGB > ::Ptr cloud2 ( new PointCloud < PointXYZRGB > );
+    //std::vector<pcl::visualization::Camera> camera;
+    PointCloud < PointXYZRGB > ::Ptr cloud ( new PointCloud < PointXYZRGB > );
     boost::shared_ptr < visualization::PCLVisualizer > viewer ( new visualization::PCLVisualizer ("3D Viewer") );
     
     vector < visualization::Camera > cam;
@@ -309,8 +308,8 @@ int main( int argc, char *argv[] )  //int argc, char *argv[]
     
 #elif ( CAP_VIDEO == 1 ) 
     
-    string file_dir = "/home/roman/Video_SFM/";
-    string file_name = "SFM_video_003.mp4"; // mp4 mkv
+    string file_dir = "/home/roman/Video_SFM/"; 
+    string file_name = "SFM_video_003.mp4"; // mp4 mkv SFM_video_003 videoZCM_1433_000.mp4 videoZCM_1908220949_01.avi
     VideoCapture cap( file_dir + file_name );
     if( !cap.isOpened() )
             throw "Error when reading " + file_name;
@@ -358,32 +357,81 @@ int main( int argc, char *argv[] )  //int argc, char *argv[]
 // --- --- --- Filter
             Mat frameTemp, frameTempGrey;
             frame.copyTo( frameTemp );
-            
+                // BGR2GREY
             cvtColor( frameTemp, frameTempGrey, COLOR_BGR2GRAY );
             imwrite( "Frame_Grey.jpg", frameTempGrey );
             
+//            Point2f source_points[4];
+//            Point2f dest_points[4];
+//            Mat transform_matrix;
+//            Mat frameTrack; // ( 720, 200, CV_8UC3 );
+
+//            source_points[0] = Point2f( 660, 270 );
+//            source_points[1] = Point2f( 680, 720 );
+//            source_points[2] = Point2f( 1000, 270 );
+//            source_points[3] = Point2f( 1000, 720 );
+
+//            dest_points[0] = Point2f( 0, 0 );
+//            dest_points[1] = Point2f( 0, 720 );
+//            dest_points[2] = Point2f( 200, 0 );
+//            dest_points[3] = Point2f( 200, 720 );
+//            transform_matrix = getPerspectiveTransform( source_points, dest_points, DECOMP_LU );
+//            warpPerspective( frameTempGrey, frameTrack, transform_matrix, Size( 200, 720 ), INTER_LINEAR );
+//            imwrite( "Frame_Track.jpg", frameTrack );
+                
+                // Gauss
             int sigma = 3;
             int ksize = 7;  //( sigma*5 ) | 1;
             GaussianBlur( frameTempGrey, frameTempGrey, Size( ksize, ksize ), sigma, sigma, cv::BORDER_DEFAULT );
             imwrite( "Frame_Gauss.jpg", frameTempGrey );
+            cvtColor( frameTempGrey, frameTemp, COLOR_GRAY2BGR );
+            frameTemp.copyTo( frame );
             
+            
+            vector< Point3d > objectPoints;
+            objectPoints.push_back( Point3d( 35.0, 0.0, 0.0 ) );
+            objectPoints.push_back( Point3d( 35.0, -1.52, 0.0 ) );
+            objectPoints.push_back( Point3d( 5.0, -1.52, 0.0 ) );
+            objectPoints.push_back( Point3d( 5.0, 0.0, 0.0 ) );
+            vector< Point2f > corners;
+            corners.push_back( Point2f( 750, 300 ) );   // 745, 300 
+            corners.push_back( Point2f( 762, 300 ) );   // 768, 300
+            corners.push_back( Point2f( 919, 645 ) );   // 919, 645
+            corners.push_back( Point2f( 683, 645 ) );   // 683, 645
+            Mat Rtrack, rvec, tvec;
+            solvePnP( objectPoints, corners, Calib.cameraMatrix, Calib.distCoeffs, rvec, tvec );
+            Rodrigues(rvec, Rtrack);
+            Matrix4d Rt_track;
+            Rt_track << Rtrack.at<double>(0, 0), Rtrack.at<double>(0, 1), Rtrack.at<double>(0, 2), tvec.at<double>(0, 0),
+                        Rtrack.at<double>(1, 0), Rtrack.at<double>(1, 1), Rtrack.at<double>(1, 2), tvec.at<double>(0, 1),
+                        Rtrack.at<double>(2, 0), Rtrack.at<double>(2, 1), Rtrack.at<double>(2, 2), tvec.at<double>(0, 2),
+                        0,                       0,                       0,                       1;
+
+            //Mat H = findHomography( corners1, corners2 );
+            
+            
+            
+                // Mask
             Mat mask = Mat::zeros( frameTempGrey.size(), CV_8U );
             for ( int i = 0; i < mask.rows; i++ )
             {
                 for ( int j = 0; j < mask.cols; j++ ) 
                 {
-                    if ( i > 500 ) mask.at< char >(i, j) = 1;
-                    else mask.at< char >(i, j) = 0;
+                    if ( (i > 250) && (j > 500) && (j < 1000) ) mask.at< char >(i, j) = 1;
+                    //else mask.at< char >(i, j) = 0;
                 }
             }
             Mat ftg = frameTempGrey.clone();
-            ftg.copyTo( frameTempGrey, mask );
-                
+//            frameTempGrey *= 0;
+//            ftg.copyTo( frameTempGrey, mask );
+                // Canny
             Canny( frameTempGrey, frameTempGrey, 10, 50, 3, false );
             imwrite( "Frame_Canny.jpg", frameTempGrey );
-            
+                // Hough Line
             Mat frameTempLines = Mat::zeros( frameTempGrey.size(), CV_8UC3 );
             vector< Vec4i > lines;
+            vector< Vec3f > lines2;
+            HoughLines( frameTempGrey, lines2, 1, CV_PI/180, 80, 0, 0, 0, CV_PI );
             HoughLinesP( frameTempGrey, lines, 1, CV_PI/180, 80, 30, 10 );
             //cvtColor( frameTempGrey, imgLine[0], COLOR_GRAY2BGR);
             for( size_t i = 0; i < lines.size(); i++ )
@@ -391,7 +439,7 @@ int main( int argc, char *argv[] )  //int argc, char *argv[]
                 line( frameTempLines, 
                       Point( lines[i][0], lines[i][1] ),
                       Point( lines[i][2], lines[i][3] ), 
-                      Scalar(0,0,255), 3, 8 );
+                      Scalar(255,100,0), 1, LINE_4 );
             }
             imwrite( "Frame_Line.jpg", frameTempLines );
             
@@ -426,6 +474,7 @@ int main( int argc, char *argv[] )  //int argc, char *argv[]
                     // SFM reconstruction
                 //MySFM.Reconstruct3D( &frameCache, &frame, Calib.cameraMatrix );    // Put old frame then new frame
                 MySFM.Reconstruct3DopticFlow( &frameCache, &frame, Calib.cameraMatrix );
+                imwrite( "frame_Flow.jpg", MySFM.frameFlow);
                 
                 if (!MySFM.points3D.empty())
                 {
@@ -475,11 +524,12 @@ int main( int argc, char *argv[] )  //int argc, char *argv[]
                     drawCamera( viewer, &cam[cloud_flag], &Rt[cloud_flag], color, cloud_flag );
                     
                         // 3D points cloud
-                    cloud.height = 1;
-                    cloud.width = static_cast<unsigned int>( MySFM.points3D.cols );
-                    cloud.is_dense = false;
-                    cloud.points.resize( cloud.width * cloud.height );
-                    for (size_t i = 0; i < cloud.points.size(); ++i)
+                    cloud->height = 1;
+                    cloud->width = static_cast<unsigned int>( MySFM.points3D.cols + 4 );
+                    cloud->is_dense = false;
+                    cloud->points.resize( cloud->width * cloud->height );
+                    
+                    for (size_t i = 0; i < cloud->points.size() - 4; ++i)
                     {
                         Vector4d temp3Dpoint;
                         temp3Dpoint << MySFM.points3D.at< double >(0, static_cast<int>(i)), 
@@ -487,26 +537,45 @@ int main( int argc, char *argv[] )  //int argc, char *argv[]
                                        MySFM.points3D.at< double >(2, static_cast<int>(i)),
                                        MySFM.points3D.at< double >(3, static_cast<int>(i));
                         temp3Dpoint = Rt[ cloud_flag - 1 ] * temp3Dpoint;
-                        cloud.points[i].x = float(temp3Dpoint(0));
-                        cloud.points[i].y = float(temp3Dpoint(1));
-                        cloud.points[i].z = float(temp3Dpoint(2));
-                        cloud.points[i].r = static_cast< uint8_t >( MySFM.points3D_BGR.at(i)[2] );
-                        cloud.points[i].g = static_cast< uint8_t >( MySFM.points3D_BGR.at(i)[1] );
-                        cloud.points[i].b = static_cast< uint8_t >( MySFM.points3D_BGR.at(i)[0] );
-//                        cloud.points[i].r = static_cast< uint8_t >( color[2] );
-//                        cloud.points[i].g = static_cast< uint8_t >( color[1] );
-//                        cloud.points[i].b = static_cast< uint8_t >( color[0] );
+                        
+                        cloud->points[i].x = float(temp3Dpoint(0));
+                        cloud->points[i].y = float(temp3Dpoint(1));
+                        cloud->points[i].z = float(temp3Dpoint(2));
+                        cloud->points[i].r = static_cast< uint8_t >( MySFM.points3D_BGR.at(i)[2] );
+                        cloud->points[i].g = static_cast< uint8_t >( MySFM.points3D_BGR.at(i)[1] );
+                        cloud->points[i].b = static_cast< uint8_t >( MySFM.points3D_BGR.at(i)[0] );
+//                        cloud->points[i].r = static_cast< uint8_t >( color[2] );
+//                        cloud->points[i].g = static_cast< uint8_t >( color[1] );
+//                        cloud->points[i].b = static_cast< uint8_t >( color[0] );
                     }
+                    for (size_t i = cloud->points.size() - 4; i < cloud->points.size(); ++i)
+                    {
+                        Vector4d temp3Dpoint;
+                        temp3Dpoint << objectPoints[i - (cloud->points.size() - 4)].x, 
+                                       objectPoints[i - (cloud->points.size() - 4)].y,
+                                       objectPoints[i - (cloud->points.size() - 4)].z,
+                                       1;
+                        temp3Dpoint = Rt[ cloud_flag - 1 ] * Rt_track * temp3Dpoint;   // Rt_track * 
+                        cloud->points[i].x = float(temp3Dpoint(0));
+                        cloud->points[i].y = float(temp3Dpoint(1));
+                        cloud->points[i].z = float(temp3Dpoint(2));
+                        cloud->points[i].r = 255;
+                        cloud->points[i].g = 0;
+                        cloud->points[i].b = 0;
+                    }
+                    
                         // Save 3D points in file
-                    pcl::io::savePCDFileASCII ("Reconstruct_cloud.pcd", cloud);
+                    pcl::io::savePCDFileASCII ("Reconstruct_cloud.pcd", *cloud);
                         // Load 3D points (cloud points)
                     //pcl::PointCloud<pcl::PointXYZ>::Ptr cloud2 (new pcl::PointCloud<pcl::PointXYZ>);
-                    pcl::io::loadPCDFile("Reconstruct_cloud.pcd", *cloud2);  // test_pcd.pcd
+                    //pcl::io::loadPCDFile("Reconstruct_cloud.pcd", *cloud);  // test_pcd.pcd
                     
                     string str = "sample cloud";
                     str += to_string(cloud_flag);
                     
-                    viewer->addPointCloud< pcl::PointXYZRGB >( cloud2, str, 0 );
+                    //cloud2->points[0].x = 0;
+                    
+                    viewer->addPointCloud< pcl::PointXYZRGB >( cloud, str, 0 );
                     viewer->setPointCloudRenderingProperties ( pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 2, str );
                     viewer->initCameraParameters();
                     viewer->setCameraFieldOfView( 0.5 ); // 0.523599 vertical field of view in radians
@@ -538,7 +607,7 @@ int main( int argc, char *argv[] )  //int argc, char *argv[]
                 MySFM.destroyWinSFM();
             }
             
-            if (cloud.size() != 0) {        // View cloud points
+            if (cloud->size() != 0) {        // View cloud points
                     // Clear the view
 //                viewer->removeAllShapes();
 //                viewer->removeAllPointClouds();
