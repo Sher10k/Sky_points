@@ -45,12 +45,12 @@ private:
     //Ptr<SURF> detectorSURF = cv::xfeatures2d::SURF::create(static_cast<double>(key_num), 4, 3, true, false);   // cv::xfeatures2d::
     //Ptr<SURF> detectorSURF = cv::xfeatures2d::SURF::create(100);
     Ptr< SIFT > detectorSIFT = cv::xfeatures2d::SIFT::create();             // 0, 4, 0.04, 10, 1.6
-    vector< KeyPoint > keypoints1_SIFT, keypoints2_SIFT;                // Key points
-    Mat descriptors1_SIFT, descriptors2_SIFT;                           // Descriptors key points
+    vector< KeyPoint > keypoints[2];                                    // Key points
+    Mat descriptors[2];                           // Descriptors key points
     unsigned long numKeypoints;                                         // Number key points
     vector< DMatch > good_matches;                                      // Good matches between frames
-    vector< KeyPoint > good_points1, good_points2;                      // Good points satisfying the threshold
-    vector< Point2f > points1, points2;                                 // KeyPoints -> Points(x, y)
+    vector< KeyPoint > good_points[2];                      // Good points satisfying the threshold
+    vector< Point2f > points[2];                                 // KeyPoints -> Points(x, y)
     
     Mat frame4;
     
