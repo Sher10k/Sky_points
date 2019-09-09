@@ -84,7 +84,7 @@ using namespace zcm;
 #define VIEWER_WIN_WIDTH 640
 #define VIEWER_WIN_HEIGHT 480
 
-#define CAP_VIDEO 1
+#define CAP_VIDEO 0
 
 void drawCamera( boost::shared_ptr < visualization::PCLVisualizer > &view, 
                  visualization::Camera *camera,

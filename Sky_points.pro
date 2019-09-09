@@ -24,14 +24,15 @@ qnx: target.path = /tmp/$${TARGET}/bin
 else: unix:!android: target.path = /opt/$${TARGET}/bin
 !isEmpty(target.path): INSTALLS += target
 
-#VLIBS_DIR = $$PWD/vlibs
-#include( $$VLIBS_DIR/vopencv/vopencv.pri)
-#DISTFILES +=
+HEADERS += \
+    Header/camcalibration.h \
+    Header/sfm_train.h
 
 CONFIG      *= link_pkgconfig
 PKGCONFIG   *= opencv4
 PKGCONFIG   *= metslib
 PKGCONFIG   *= zcm
+PKGCONFIG   += eigen3
 
 PKGCONFIG   += pcl_2d-1.9
 PKGCONFIG   += pcl_common-1.9
@@ -55,40 +56,17 @@ PKGCONFIG   += pcl_surface-1.9
 PKGCONFIG   += pcl_tracking-1.9
 PKGCONFIG   += pcl_visualization-1.9
 
-#PKGCONFIG   += eigen3
-#LIBS        += -L/usr/local/lib
-#INCLUDEPATH += /usr/local/include/pcl-1.9/pcl
-INCLUDEPATH += /usr/local/include/vtk-8.0
+INCLUDEPATH += /usr/local/include/vtk-8.2
 
-#LIBS += -L/usr/local/lib -Wl,-rpath=/usr/local/lib
 LIBS += -lboost_system \
-        -lvtkCommonCore-8.0 \
-        -lvtkRenderingCore-8.0 \
-        -lvtkCommonDataModel-8.0  \
-        -lvtkCommonMath-8.0 \
-        -lvtkFiltersSources-8.0 \
-        -lvtkCommonExecutionModel-8.0 \
-        -lvtkRenderingLOD-8.0
+        -lvtkCommonCore-8.2 \
+        -lvtkRenderingCore-8.2 \
+        -lvtkCommonDataModel-8.2  \
+        -lvtkCommonMath-8.2 \
+        -lvtkFiltersSources-8.2 \
+        -lvtkCommonExecutionModel-8.2 \
+        -lvtkRenderingLOD-8.2
         #-lpthread \
         #-lvtksys-8.0
         #-lX11 \
         #-ldl
-
-#INCLUDEPATH += /usr/local/include/opencv4
-#LIBS += -L/usr/local/lib
-
-#LIBS += -lopencv_core \
-#        -lopencv_imgproc \
-#        -lopencv_imgcodecs \
-#        -lopencv_highgui \
-#        -lopencv_objdetect \
-#        -lopencv_features2d \
-#        -lopencv_xfeatures2d \
-#        -lopencv_videoio \
-#        -lopencv_tracking \
-#        -lopencv_calib3d \
-#        -lopencv_sfm
-
-HEADERS += \
-    Header/camcalibration.h \
-    Header/sfm_train.h

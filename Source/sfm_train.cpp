@@ -328,7 +328,7 @@ void SFM_Reconstruction::Reconstruct3Dstereo( Mat *data_frameL, Mat *data_frameR
     valid_mask = Mat::ones( Size( 1, int(numKeypoints)), valid_mask.type() );
     //valid_mask.setTo( Scalar::all(1) );
     //E = findEssentialMat( points[0], points[1], K[0], RANSAC, 0.999, 3.0, valid_mask );
-    E = findEssentialMat( points[0], points[1], K[0], K[1], RANSAC, 0.999, 3.0, valid_mask );
+    //E = findEssentialMat( points[0], points[1], K[0], K[1], RANSAC, 0.999, 3.0, valid_mask );
     F = findFundamentalMat( points[0], points[1], FM_RANSAC, 3, 0.99);
 //    correctMatches(F, points[0], points[1], points[0], points[1]);
     
