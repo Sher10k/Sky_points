@@ -56,6 +56,9 @@
 //#include <opencv2/sfm/robust.hpp>
 #include <opencv2/sfm/triangulation.hpp>
 
+#include <opencv2/core/cuda.hpp>
+#include <opencv2/cudaarithm.hpp>
+
 #include <pcl/io/io.h>
 #include <pcl/io/pcd_io.h>
 //#include <pcl/impl/point_types.hpp>
@@ -84,7 +87,7 @@ using namespace zcm;
 #define VIEWER_WIN_WIDTH 640
 #define VIEWER_WIN_HEIGHT 480
 
-#define CAP_VIDEO 0
+#define CAP_VIDEO 1
 
 void drawCamera( boost::shared_ptr < visualization::PCLVisualizer > &view, 
                  visualization::Camera *camera,
@@ -308,7 +311,7 @@ int main( int argc, char *argv[] )  //int argc, char *argv[]
     
 #elif ( CAP_VIDEO == 1 ) 
     
-    string file_dir = "/home/roman/Video_SFM/"; 
+    string file_dir = "/home/roman/video_SFM/"; 
     string file_name = "SFM_video_003.mp4"; // mp4 mkv SFM_video_003 videoZCM_1433_000.mp4 videoZCM_1908220949_01.avi
     VideoCapture cap( file_dir + file_name );
     if( !cap.isOpened() )
@@ -380,12 +383,12 @@ int main( int argc, char *argv[] )  //int argc, char *argv[]
 //            imwrite( "Frame_Track.jpg", frameTrack );
                 
                 // Gauss
-            int sigma = 3;
-            int ksize = 7;  //( sigma*5 ) | 1;
-            GaussianBlur( frameTempGrey, frameTempGrey, Size( ksize, ksize ), sigma, sigma, cv::BORDER_DEFAULT );
-            imwrite( "Frame_Gauss.jpg", frameTempGrey );
-            cvtColor( frameTempGrey, frameTemp, COLOR_GRAY2BGR );
-            frameTemp.copyTo( frame );
+//            int sigma = 3;
+//            int ksize = 7;  //( sigma*5 ) | 1;
+//            GaussianBlur( frameTempGrey, frameTempGrey, Size( ksize, ksize ), sigma, sigma, cv::BORDER_DEFAULT );
+//            imwrite( "Frame_Gauss.jpg", frameTempGrey );
+//            cvtColor( frameTempGrey, frameTemp, COLOR_GRAY2BGR );
+//            frameTemp.copyTo( frame );
             
             
             vector< Point3d > objectPoints;

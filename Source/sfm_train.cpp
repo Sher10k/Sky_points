@@ -190,12 +190,24 @@ void SFM_Reconstruction::Reconstruct3DopticFlow( Mat *data_frame0, Mat *data_fra
 //        imshow( "fg1", fg1 );
 //        imshow( "fg2", fg2 );
 //        waitKey(20);
-        //calcOpticalFlowFarneback( fg1, fg2, flow, 0.9, 1, 12, 2, 8, 1.7, 0 );    // OPTFLOW_FARNEBACK_GAUSSIAN
+        //calcOpticalFlowFarneback( fg1, fg2, flow, 0.9, 1, 12, 2, 7, 1.7, 0 );    // OPTFLOW_FARNEBACK_GAUSSIAN
         //calcOpticalFlowFarneback( fg1, fg2, flow, 0.6, 4, 5, 2, 3, 1.1, OPTFLOW_FARNEBACK_GAUSSIAN );
-        optflow::calcOpticalFlowSparseToDense( fg1, fg2, flow, 4, 128, 0.01f, true, 500.0f, 1.5f);
+        //optflow::calcOpticalFlowSparseToDense( fg1, fg2, flow, 4, 128, 0.01f, true, 500.0f, 1.5f);
         //optflow::calcOpticalFlowSparseToDense( fg1, fg2, flow, 13, 256, 0.002f, true, 500.0f, 1.5f);
         //optflow::calcOpticalFlowSparseToDense( fg1, fg2, flow, 3, 32, 0.01f, false );
         
+//        fg1.convertTo(fg1, CV_32F);
+//        fg2.convertTo(fg2, CV_32F);
+        gpu_fg1.upload(fg1);
+        gpu_fg2.upload(fg2);
+        gpu_flow.upload(flow);
+        FOF->calc( gpu_fg1, gpu_fg2, gpu_flow );  // good
+        //DPLKOF->calc( gpu_fg1, gpu_fg2, gpu_flow );
+        //BOF->calc( gpu_fg1, gpu_fg2, gpu_flow );
+        //OFD->calc( gpu_fg1, gpu_fg2, gpu_flow );
+        gpu_flow.download(flow);
+        
+            // Paint optic flow
         Mat Lmax;
         normalize( flow, Lmax, 1.0, 0.0, NORM_INF);
         cvtColor( frame4, frame4, COLOR_BGR2HSV );
