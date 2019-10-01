@@ -192,7 +192,7 @@ void SFM_Reconstruction::Reconstruct3DopticFlow( Mat *data_frame0, Mat *data_fra
 //        waitKey(20);
         //calcOpticalFlowFarneback( fg1, fg2, flow, 0.9, 1, 12, 2, 7, 1.7, 0 );    // OPTFLOW_FARNEBACK_GAUSSIAN
         //calcOpticalFlowFarneback( fg1, fg2, flow, 0.6, 4, 5, 2, 3, 1.1, OPTFLOW_FARNEBACK_GAUSSIAN );
-        //optflow::calcOpticalFlowSparseToDense( fg1, fg2, flow, 4, 128, 0.01f, true, 500.0f, 1.5f);
+        optflow::calcOpticalFlowSparseToDense( fg1, fg2, flow, 4, 128, 0.01f, true, 500.0f, 1.5f);
         //optflow::calcOpticalFlowSparseToDense( fg1, fg2, flow, 13, 256, 0.002f, true, 500.0f, 1.5f);
         //optflow::calcOpticalFlowSparseToDense( fg1, fg2, flow, 3, 32, 0.01f, false );
         

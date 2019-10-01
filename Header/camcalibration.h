@@ -26,7 +26,7 @@ public:
     Matx33d cameraMatrix;           //= Matx33d( 10,     0,  FRAME_WIDTH/2, 0,     10,  FRAME_HEIGHT/2, 0,     0,  1);
     Matx<double, 1, 5> distCoeffs;  //= Matx<double, 1, 5>(0.0, 0.0, 0.0, 0.0, 0.0);  // (k1, k2, p1, p2, k3)
     vector<Mat> rvecs, tvecs;
-    int calibrationFlags;
+    int calibrationFlags = 0;
     int width_frame, height_frame;
     
     CalibrationCamera(VideoCapture *);
