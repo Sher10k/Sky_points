@@ -56,9 +56,6 @@
 //#include <opencv2/sfm/robust.hpp>
 #include <opencv2/sfm/triangulation.hpp>
 
-#include <opencv2/core/cuda.hpp>
-#include <opencv2/cudaarithm.hpp>
-
 #include <pcl/io/io.h>
 #include <pcl/io/pcd_io.h>
 //#include <pcl/impl/point_types.hpp>
@@ -355,14 +352,16 @@ int main( int argc, char *argv[] )  //int argc, char *argv[]
                 cerr << "ERROR! blank frame grabbed\n";
                 break;
             }
+            imwrite( "FrameRAW.png", frameRAW );
             undistort(frameRAW, frame, Calib.cameraMatrix, Calib.distCoeffs);
+            imwrite( "Frame.png", frame );
             
 // --- --- --- Filter
             Mat frameTemp, frameTempGrey;
             frame.copyTo( frameTemp );
                 // BGR2GREY
             cvtColor( frameTemp, frameTempGrey, COLOR_BGR2GRAY );
-            imwrite( "Frame_Grey.jpg", frameTempGrey );
+            imwrite( "Frame_Grey.png", frameTempGrey );
             
 //            Point2f source_points[4];
 //            Point2f dest_points[4];
@@ -383,12 +382,12 @@ int main( int argc, char *argv[] )  //int argc, char *argv[]
 //            imwrite( "Frame_Track.jpg", frameTrack );
                 
                 // Gauss
-//            int sigma = 3;
-//            int ksize = 7;  //( sigma*5 ) | 1;
-//            GaussianBlur( frameTempGrey, frameTempGrey, Size( ksize, ksize ), sigma, sigma, cv::BORDER_DEFAULT );
-//            imwrite( "Frame_Gauss.jpg", frameTempGrey );
-//            cvtColor( frameTempGrey, frameTemp, COLOR_GRAY2BGR );
-//            frameTemp.copyTo( frame );
+            int sigma = 3;
+            int ksize = 7;  //( sigma*5 ) | 1;
+            GaussianBlur( frameTempGrey, frameTempGrey, Size( ksize, ksize ), sigma, sigma, cv::BORDER_DEFAULT );
+            imwrite( "Frame_Gauss.jpg", frameTempGrey );
+            cvtColor( frameTempGrey, frameTemp, COLOR_GRAY2BGR );
+            frameTemp.copyTo( frame );
             
             
             vector< Point3d > objectPoints;
